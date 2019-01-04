@@ -131,8 +131,7 @@ def string_move(string, box, offset, loop, filler=' '):
     return new_str
 
 
-def string_align_move(string, box, offset, align_h, align_v,
-                 loop=False, filler=' '):
+def string_align_move(string, box, offset, align_h, align_v, loop=False, filler=' '):
     """Align and position a string in relation to a box 
 
     Parameters:
@@ -158,13 +157,14 @@ def string_align_move(string, box, offset, align_h, align_v,
     # apply offset
     return string_move(string, box, offset, loop, filler=filler)
 
+
 class Menu(object):
 
     def __init__(self, name='', box=[16, 2], auto_size=False,
                  parent=None, items=[], loop=False, focus_end=True,
                  cursor_pos=[0, 0],
                  direction=HORIZONTAL, align_h=ALIGN_LEFT, align_v=ALIGN_TOP,
-                 item_divider='', loop_divider='  '):
+                 item_div='', loop_div='  '):
         self.name = name
         self.box = box
         self.loop = loop
@@ -177,8 +177,8 @@ class Menu(object):
         # Hidden
         self._cursor_pos = cursor_pos
         self._items = items
-        self._items_focus_idx = 0
-        self._is_focused = False
+        self._items_index = 0
+        self._focus = None
         # Buttons
         self.btn_next = []
         self.btn_prev = []
@@ -191,14 +191,20 @@ class Menu(object):
         self.do_select = None
         self.do_any = None
 
-        self.item_divider = item_divider
-        self.loop_divider = loop_divider
+        self.item_div = item_div
+        self.loop_div = loop_div
 
     def __repr__(self):
         return '<Menu: {0}>'.format(self.items)
 
     def __str__(self):
-        return self.content_offset_boxed()
+        return self.display()
+
+
+    ###########################################################################
+    # Static Mehtods
+    ###########################################################################
+
 
     @staticmethod
     def axis(direction):
@@ -206,8 +212,24 @@ class Menu(object):
                 direction == VERTICAL]
 
     @staticmethod
+    def _items_max_box(items):
+        """Maximum size of combined items
+
+        Parameters:
+            items (list): list of Menu or str
+
+        Returns:
+            list: list of int [w, h] size
+        """
+
+        strings = [str(item) for item in items]
+        sizes = [str_size(string) for string in strings]
+        # print(sizes)
+        return [max(i) for i in zip(*sizes)]
+
+    @staticmethod
     def _items_insert_divs(items, item_div, loop_div, loop):
-        """Return list of items with added dividers
+        """Return a list of items with inserted dividers
 
         Parameters:
             items (list): list of Menu or str
@@ -229,18 +251,23 @@ class Menu(object):
                 # Insert item divider
                 complete_list.append(item_div)
 
-
         if loop == True:
             # Insert loop dividier
             complete_list.append(loop_div)
 
         return complete_list
 
-    
-
     @staticmethod
     def _items_expanded_aligned(items, offset, axis, align_h, align_v):
-        """Align items in relation to their combined max box and direction
+        """Expand and align items.
+        Use their combined max box across the directional axis
+
+        Parameters:
+            items (list):
+            offset (list): list of int [x, y]
+            axis (list): list of bool [horizontal, vertical]
+            align_h (int): range(0-2)
+            align_v (int): range(0-2)
 
         Returns:
             list: list of strings.
@@ -269,29 +296,24 @@ class Menu(object):
         return new_items_str
 
     @staticmethod
-    def _items_max_box(items):
-        """Maximum size items have
+    def _items_content(items, direction, loop, align_h, align_v, item_div, loop_div):
+        """Full content of menu without move or crop
 
-        Returns:
-            list: list of int [w, h] size
-        """
-
-        strings = [str(item) for item in items]
-        sizes = [str_size(string) for string in strings]
-        #print(sizes)
-        return [max(i) for i in zip(*sizes)]
-
-    @staticmethod
-    def items_content(items, direction, loop, align_h, align_v,
-                item_divider, loop_divider):
-        """Full content of menu wihtout offset
+        Parameters:
+            items (list):
+            direction (bool): Vertical if True
+            loop (bool): True if menu is looping
+            align_h (int): range(0-2)
+            align_v (int): range(0-2)
+            item_div (str): String representing the item divider
+            loop_div (str): String representing the loop divider
 
         Returns:
             str: Menu content
         """
         axis = Menu.axis(direction)
 
-        items = Menu._items_insert_divs(items, item_divider, loop_divider, loop)
+        items = Menu._items_insert_divs(items, item_div, loop_div, loop)
         strings = Menu._items_expanded_aligned(items, [0,0], axis, align_h, align_v)
         items_box = Menu._items_max_box(items)
         ordered_strings=strings
@@ -309,41 +331,146 @@ class Menu(object):
         return '\n'.join(ordered_strings)
 
     @staticmethod
-    def items_content_offset(items, offset, direction, loop, align_h, align_v,
-                       item_divider, loop_divider):
-        """Return and offseted version of the content
+    def _items_content_moved(items, offset, direction, loop, align_h, align_v, item_div, loop_div):
+        """Returns a moved version of _items_content
+
+        Parameters:
+            items (list):
+            offset (list): list of int [x, y]
+            direction (bool): Vertical if True
+            loop (bool): True if menu is looping
+            align_h (int): range(0-2)
+            align_v (int): range(0-2)
+            item_div (str): String representing the item divider
+            loop_div (str): String representing the loop divider
 
         Returns:
             str: Content offset
         """
-        content = Menu.items_content(items, direction, loop, align_h, align_v,
-                                  item_divider, loop_divider)
+        content = Menu._items_content(items, direction, loop, align_h, align_v,
+                                  item_div, loop_div)
         box = str_size(content)
         axis = Menu.axis(direction)
         offset = prod_iters(axis, [offset]*2)
 
         return string_move(content, box, offset, loop)
 
+    @staticmethod
+    def focus_item(item, is_focused):
+        try:
+            item.is_focused = is_focused
+        except:
+            pass
+
+
+    ###########################################################################
+    # Properties
+    ###########################################################################
+
 
     @property
+    def items(self):
+        return self._items
+
+    @items.setter
+    def items(self, items):
+        self._items = items
+        for i in self.items:
+            try:
+                i.parent = self
+            except:
+                pass
+
+    @property
+    def items_index(self):
+        return self._items_index
+
+    @items_index.setter
+    def items_index(self, idx):
+        if self.loop:
+            # loop
+            self._items_idx = idx % len(self.items)
+        else:
+            # Ends
+            self._items_idx = max(min(idx, len(self.items)-1), 0)
+
+    @property
+    def is_focused(self):
+        return self._is_focused
+
+    @is_focused.setter
+    def is_focused(self, val):
+        self._is_focused = val
+        '''
+
+        if self.is_focused:
+            # Pass focus down
+            self.items_focus_idx = self.items_focus_idx
+        else:
+            for i in self.items:
+                i.is_focused = False
+        '''
+
+    @property
+    def items_focus_idx(self):
+        return self._items_idx
+        
+    @items_focus_idx.setter
+    def items_focus_idx(self, idx):
+        if self.loop:
+            # loop
+            self._items_idx = idx % len(self.items)
+        else:
+            # Ends
+            self._items_idx = max(min(idx, len(self.items)-1), 0)
+
+        # Change focus on item
+        if not self.focus_end:
+            for item in self.items:
+                Menu.focus_item(item, item == self.focused_item())
+
+
+    ###########################################################################
+    # Methods
+    ###########################################################################
+
+
     def content(self):
-        return self.items_content(self.items, self.direction, self.loop,
-                                  self.align_h, self.align_v,
-                                  self.item_divider, self.loop_divider)
+        return self._items_content(self.items, self.direction, self.loop,
+                                   self.align_h, self.align_v,
+                                   self.item_div, self.loop_div)
 
-    @property
-    def content_offset(self):
-        return self.items_content_offset(self.items, self.offset, self.direction, self.loop,
-                                  self.align_h, self.align_v,
-                                  self.item_divider, self.loop_divider)
+    def _content_moved(self):
+        return self._items_content_moved(self.items, self.offset,
+                                         self.direction, self.loop,
+                                         self.align_h, self.align_v,
+                                         self.item_div, self.loop_div)
 
-    def content_offset_boxed(self):
-        return string_move(self.content_offset, self.box, [0, 0], False)
+    def display(self):
+        return string_move(self._content_moved(), self.box, [0, 0], False)
+
+    def focus_parent(self):
+        if self.parent:
+            self.parent.is_focused = True
 
 
+    def next(self):
+        if self.focus_end and self.parent:
+            self.parent.next()
+        else:
+            if self.loop:
+                self.items_focus_idx = (self.items_focus_idx + 1) % len(self.items)
+            else:
+                self.items_focus_idx = min(self.items_focus_idx + 1, len(self.items) - 1)
 
-    def display_box(self):
-        return str_size(self.display())
+    def prev(self):
+        if self.focus_end and self.parent:
+            self.parent.prev()
+        else:
+            if self.loop:
+                self.items_focus_idx = (self.items_focus_idx - 1) % len(self.items)
+            else:
+                self.items_focus_idx = max(self.items_focus_idx - 1, 0)
 
 
 
@@ -394,71 +521,9 @@ class Menu(object):
         return self.cursor_pos
 
 
-
-
-    @property
-    def items(self):
-        return self._items
-
-    @items.setter
-    def items(self, val):
-        self._items = val
-        for i in self.items:
-            try:
-                i.parent = self
-            except:
-                pass
-
-    @property
-    def is_focused(self):
-        return self._is_focused
-
-    @is_focused.setter
-    def is_focused(self, val):
-        self._is_focused = val
-
-        if self.is_focused:
-            print('Focused: {0}'.format(self.name))
-            self.items_focus_idx = self.items_focus_idx
-        else:
-            for i in self.items:
-                i.is_focused = False
-
-    @property
-    def items_focus_idx(self):
-        return self._items_focus_idx
-        
-    @items_focus_idx.setter
-    def items_focus_idx(self, idx):
-        self._items_focus_idx = idx
-        if not self.focus_end:
-            for i in self.items:
-                if i == self.focused_item():
-                    i.is_focused = True
-                else:
-                    i.is_focused = False
-
     def focused_item(self):
         return self.items[self.items_focus_idx]
 
-
-    def next(self):
-        if self.focus_end and self.parent:
-            self.parent.next()
-        else:
-            if self.loop:
-                self.items_focus_idx = (self.items_focus_idx + 1) % len(self.items)
-            else:
-                self.items_focus_idx = min(self.items_focus_idx + 1, len(self.items) - 1)
-
-    def prev(self):
-        if self.focus_end and self.parent:
-            self.parent.prev()
-        else:
-            if self.loop:
-                self.items_focus_idx = (self.items_focus_idx - 1) % len(self.items)
-            else:
-                self.items_focus_idx = max(self.items_focus_idx - 1, 0)
 
     def on_pressed(self, btn):
         if not self.is_focused:
@@ -494,10 +559,10 @@ class Menu_h(Menu):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.item_divider = Line('  ')
-        self.item_divider.auto_box_w()
-        self.loop_divider = Line('  ')
-        self.loop_divider.auto_box_w()
+        self.item_div = Line('  ')
+        self.item_div.auto_box_w()
+        self.loop_div = Line('  ')
+        self.loop_div.auto_box_w()
 
     def auto_box_w(self):
         self.box_w = self.w
@@ -551,7 +616,7 @@ class Menu_h(Menu):
                 total.append(self.items[idx].box_w)
         except:
             pass
-        return sum(total) + (self.item_divider.box_w * max(0, item_idx) )
+        return sum(total) + (self.item_div.box_w * max(0, item_idx) )
 
     '''
     @property
@@ -561,10 +626,10 @@ class Menu_h(Menu):
             total.append(i.box_w)
 
         answer = sum(total)
-        if self.item_divider:
-            answer += (self.item_divider.box_w * (len(total) - 1))
-        if self.loop and self.loop_divider:
-            answer += self.loop_divider.box_w
+        if self.item_div:
+            answer += (self.item_div.box_w * (len(total) - 1))
+        if self.loop and self.loop_div:
+            answer += self.loop_div.box_w
 
         return answer
     '''
@@ -596,17 +661,17 @@ class Menu_h(Menu):
                 cols.append(txt)
                 if (idx < len(self.items) - 1):
                     if not cursor:
-                        cols.append(self.item_divider.display_box())
+                        cols.append(self.item_div.display_box())
                     else:
-                        cur_div_txt = '0'*self.item_divider.w
-                        cur_div = Line(txt=cur_div_txt, box_w=self.item_divider.box_w)
+                        cur_div_txt = '0'*self.item_div.w
+                        cur_div = Line(txt=cur_div_txt, box_w=self.item_div.box_w)
                         cols.append(cur_div.display_box())
                 elif self.loop:
                     if not cursor:
-                        cols.append(self.loop_divider.display_box())
+                        cols.append(self.loop_div.display_box())
                     else:
-                        cur_div_txt = '0'*self.loop_divider.w
-                        cur_div = Line(txt=cur_div_txt, box_w=self.loop_divider.box_w)
+                        cur_div_txt = '0'*self.loop_div.w
+                        cur_div = Line(txt=cur_div_txt, box_w=self.loop_div.box_w)
                         cols.append(cur_div.display_box())
                 '''
             rows.append(''.join(cols))
@@ -641,17 +706,17 @@ if __name__ == "__main__":
     direction = 1
     box = [16, 2]
 
-    m = Menu(name='menu', box=box, direction=0, items=txts_div, align_h=1, align_v=1, item_divider='', loop_divider='--')
+    m = Menu(name='menu', box=box, direction=0, items=txts_div, align_h=1, align_v=1, item_div='', loop_div='--')
     m.loop = True
     #print(m.content)
 
     #print(m.items)
-    #_items_insert_divs = Menu._items_insert_divs(m.items, m.item_divider, m.loop_divider, m.loop)
+    #_items_insert_divs = Menu._items_insert_divs(m.items, m.item_div, m.loop_div, m.loop)
     #print(_items_insert_divs)
 
 
-    print(str_size(m.content))
-    print(m.content)
+    print(str_size(m.content()))
+    print(m.content())
     print(' ')
     print('start')
     print(' ')
@@ -661,6 +726,7 @@ if __name__ == "__main__":
         print(m)
         print('-------------')
         m.offset += 1
+
     '''
     box = [6, 3]
     offset = [0,1]
