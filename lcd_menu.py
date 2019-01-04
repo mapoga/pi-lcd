@@ -7,12 +7,6 @@ ALIGN_RIGHT = 2
 ALIGN_TOP = 0
 ALIGN_BOTTOM = 2
 
-SELECT = 0
-RIGHT = 1
-DOWN = 2
-UP = 3
-LEFT = 4
-
 
 def str_size(string):
     """Dimensions of string once printed. Units are char.
@@ -29,6 +23,7 @@ def str_size(string):
 
     return [col, len(rows)]
 
+
 def sum_iters(*iterables):
     """Sum iterables component-wise
 
@@ -40,6 +35,7 @@ def sum_iters(*iterables):
 
     """
     return [sum(i) for i in zip(*iterables)]
+
 
 def prod_iters(*iterables):
     """Product iterables component-wise
@@ -59,6 +55,7 @@ def prod_iters(*iterables):
             p *= col
         prod.append(p)
     return prod
+
 
 def get_align_offset(string, box, hor=ALIGN_LEFT, vert=ALIGN_TOP):
     """Returns the positional offset of aligning a string inside a box
@@ -81,8 +78,6 @@ def get_align_offset(string, box, hor=ALIGN_LEFT, vert=ALIGN_TOP):
     center_y = float(vert)*float(delta[1])/2.0
 
     return [round(center_x), round(center_y)]
-
-
 
 
 def get_loop_offset(pos, box):
@@ -111,56 +106,33 @@ def offset_string(string, box, offset):
     Returns:
         string: Modified string
     """
-    
-    #str_list = string.split('\n')
+
     new_str = ''
     for row in range(box[1]):
         for col in range(box[0]):
-                x = col-offset[0]
-                y = row-offset[1]
-                new_str += get_char(string, [x, y])
-                '''
-            try:
-                if x < 0 or y < 0:
-                    raise
-                new_str += str_list[y][x]
-            except:
-                new_str += ' '
-                '''
-    return new_str
-'''
-def get_offset_char(string, box, pos, offset):
-    str_list = string.split('\n')
-    new_str = ' '
-    for row in range(box[1]):
-        for col in range(box[0]):
-            if [col, row] == pos:
-                try:
-                    x = col-offset[0]
-                    y = row-offset[1]
-                    if x < 0 or y < 0:
-                        raise
-                    new_str = str_list[y][x]
-                except:
-                    pass
+            x = col-offset[0]
+            y = row-offset[1]
+            new_str += get_char(string, [x, y])
+
     return new_str
 
-def get_offset_char2(string, box, pos):
-    for row in range(box[1]):
-        for col in range(box[0]):
-            if [col, row] == pos:
-                x = pos[0]
-                y = pos[1]
-                return get_char(string, pos)
-    return ' '
-'''
 
 def get_char(string, pos):
+    """Returns the character at position in string
+
+    Parameters:
+        string (str): 
+        pos (list): List of int [x, y] Position
+
+    Returns:
+        str: single character
+    """
+
     str_list = string.split('\n')
     try:
         if pos[0] < 0 or pos[1] < 0:
             raise
-        return str_list[ pos[1] ][ pos[0] ]
+        return str_list[pos[1]][pos[0]]
     except:
         return ' '
 
@@ -187,11 +159,11 @@ class Menu(object):
         self._items_focus_idx = 0
         self._is_focused = False
         # Buttons
-        self.btn_next = [RIGHT, ]
-        self.btn_prev = [LEFT, ]
-        self.btn_select = [SELECT, ]
-        self.btn_more = [UP, ]
-        self.btn_less = [DOWN, ]
+        self.btn_next = []
+        self.btn_prev = []
+        self.btn_select = []
+        self.btn_more = []
+        self.btn_less = []
         # Actions
         self.do_more = None
         self.do_less = None
@@ -208,49 +180,129 @@ class Menu(object):
         return self.display_box()
 
     @property
-    def items_with_divs(self):
+    def axis(self):
+        return [self.direction == HORIZONTAL,
+                self.direction == VERTICAL]
+
+    @staticmethod
+    def items_insert_divs(items, item_div, loop_div, loop):
         """Return list of items with added dividers
+
+        Parameters:
+            items (list): list of Menu or str
+            item_div (str): String representing the item divider
+            loop_div (str): String representing the loop divider
+            loop (bool): True if menu is looping
 
         Returns:
             list: list of items
         """
 
-        str_items = [Menu.item_as_str(item) for item in self.items]
+        # Items
+        str_items = [Menu.item_as_str(item) for item in items]
         complete_list = []
         str_list = []
 
         # Insert Dividers
         for idx, string in enumerate(str_items):
             str_list.append(string)
-            complete_list.append(self.items[idx])
+            complete_list.append(items[idx])
             if (idx < len(str_items) - 1):
-                str_list.append(self.item_divider)
-                complete_list.append(self.item_divider)
+                str_list.append(item_div)
+                complete_list.append(item_div)
 
         # Insert Loop Dividier
-        if self.loop == True:
-            complete_list.append(self.loop_divider)
+        if loop == True:
+            complete_list.append(loop_div)
 
         return complete_list
 
     @staticmethod
     def item_as_str(item):
+        """String representation of a single item
+
+        Parameters:
+            item (Menu or str):
+
+        Returns:
+            str: item as a string
+
+        """
         if isinstance(item, str):
-            # txt
-            #w, h = Menu.str_size(i)
             return item
         elif isinstance(item, str):
             # Menu
             return
+    @staticmethod
+    def align_string(string, box, offset, axis, align_h, align_v):
 
-    def items_to_strings(self):
-        items = self.items_with_divs
+        #size = str_size(string)
+        #str_list = string.split('\n')
+
+        # Keep out and result to box
+        # {
+        #max_item_size = [max(i) for i in zip(*items_size)]
+        #axis_flipped = [not b for b in axis]
+        #max_size_across_direction = prod_iters(axis_flipped, max_item_size)
+        #item_box = [max(i) for i in zip(max_size_across_direction, size)]
+        # }
+
+        # offset
+        align_offset = get_align_offset(string, box,
+                                        hor=align_h,
+                                        vert=align_v)
+        offset = [offset[0] + align_offset[0],
+                  offset[1] + align_offset[1]]
+        new_str = ''
+
+        # item_box loop
+        for row in range(box[1]):
+            for col in range(box[0]):
+                # offset character
+                char_offset = offset
+
+                # apply offset
+                char_offset= [col-offset[0], row-offset[1]]
+                new_str += get_char(string,
+                                    [char_offset[0],
+                                    char_offset[1]])
+            # put back newline char
+            if row < box[1]-1:
+                new_str += '\n'
+        return new_str
+
+    @staticmethod
+    def items_align(items, offset, axis, align_h, align_v):
+        """Adds space to the strings.
+        Making them have the same size in the direction
+        across from the menu direction.
+        Align the strings according to properties.
+
+        Returns:
+            list: list of strings.
+        """
+
         items_str = [Menu.item_as_str(item) for item in items]
         items_size = [str_size(string) for string in items_str]
         max_item_size = [max(i) for i in zip(*items_size)]
-        base_offset = [0, 0]
+        axis_flipped = [not b for b in axis]
+        max_size_across_direction = prod_iters(axis_flipped, max_item_size)
         new_items_str = []
 
+        for item in items:
+            string = Menu.item_as_str(item)
+
+            if(string):
+                size = str_size(string)
+                new_str = ''
+                #str_list = string.split('\n')
+                item_box = [max(i) for i in zip(max_size_across_direction, size)]
+                new_str = Menu.align_string(string, item_box, offset, axis, align_h, align_v)
+
+
+                new_items_str.append(new_str)
+        return new_items_str
+        '''
         for item in items:
             # item
             string = Menu.item_as_str(item)
@@ -262,10 +314,10 @@ class Menu(object):
                 str_list = string.split('\n')
                 # box
                 axis_flipped = [not b for b in self.axis]
-                max_item_size_along_direction = prod_iters(
+                max_size_across_direction = prod_iters(
                     axis_flipped, max_item_size)
                 item_box = [max(i) for i in zip(
-                    max_item_size_along_direction, size)]
+                    max_size_across_direction, size)]
 
                 # offset
                 offset = base_offset
@@ -279,40 +331,55 @@ class Menu(object):
                 for row in range(item_box[1]):
                     for col in range(item_box[0]):
                         # offset character
-                        char_offset = offset
+                        char_offset= offset
 
                         # apply offset
-                        #new_str += get_offset_char(string, item_box,
-                        #                           [col, row], char_offset)
-                        char_offset = [col-offset[0], row-offset[1]]
-                        new_str += get_char(string, [char_offset[0], char_offset[1]])
+                        char_offset= [col-offset[0], row-offset[1]]
+                        new_str += get_char(string,
+                                            [char_offset[0], char_offset[1]])
                     # put back newline char
                     if row < item_box[1]-1:
                         new_str += '\n'
-
                 new_items_str.append(new_str)
         return new_items_str
+        '''
 
     def max_items_box(self):
-        strings = self.items_to_strings()
-        return max([str_size(string) for string in strings])
+        """Maximum size items have
 
-    def display_box(self):
-        return str_size(self.display())
+        Returns:
+            list: list of int [w, h] size
+        """
+
+        # strings=self.items_align()
+        strings = [self.item_as_str(item) for item in self.items]
+        sizes = [str_size(string) for string in strings]
+        #print(sizes)
+        return [max(i) for i in zip(*sizes)]
 
     @property
     def content(self):
-        strings = self.items_to_strings()
-        items_box = self.max_items_box()
-        ordered_strings = strings
+        """Full content of menu wihtout offset
+
+        Returns:
+            str: Menu content
+        """
+        items = self.items_insert_divs(self.items, self.item_divider, self.loop_divider, self.loop)
+        #print(self.items)
+        #print(items)
+        strings = self.items_align(items, [0,0], self.axis, self.align_h, self.align_v)
+        #print(strings)
+        items_box=self.max_items_box()
+        #print(items_box)
+        ordered_strings=strings
 
         if self.direction == HORIZONTAL:
-            new_string = ''
-            ordered_strings = []
+            new_string=''
+            ordered_strings=[]
             for row in range(items_box[1]):
-                cols = ''
+                cols=''
                 for string in strings:
-                    str_list = string.split('\n')
+                    str_list=string.split('\n')
                     cols += str_list[row]
                 ordered_strings.append(cols)
 
@@ -320,45 +387,39 @@ class Menu(object):
 
     @property
     def content_offset(self):
-        string = self.content
-        str_list = string.split('\n')
-        box = str_size(string)
-        #print('box: ', box)
-        offset = prod_iters(self.axis, [self.offset]*2)
+        """Return and offseted version of the content using self.offset
 
-        new_str = ''
+        Returns:
+            str: Content offset
+        """
+        string=self.content
+        str_list=string.split('\n')
+        box=str_size(string)
+        # print('box: ', box)
+        offset=prod_iters(self.axis, [self.offset]*2)
+
+        new_str=''
         for row in range(box[1]):
             for col in range(box[0]):
                 # offset character
-                char_offset = [offset[0]+col, offset[1]+row]
+                char_offset=[offset[0]+col, offset[1]+row]
 
                 if self.loop:
-                    char_offset = get_loop_offset(char_offset, box)
-                    #print('off: ', char_offset)
+                    char_offset=get_loop_offset(char_offset, box)
+                    # print('off: ', char_offset)
 
                 # apply offset
                 new_str += get_char(string, [char_offset[0], char_offset[1]])
-                '''
-                try:
-                    new_str += str_list[char_offset[1]][char_offset[0]]
-                except:
-                    new_str += ' '
-                '''
             # put back newline char
             if row < box[1]-1:
                 new_str += '\n'
+
         return new_str
 
 
 
-
-    @property
-    def axis(self):
-        return [self.direction == HORIZONTAL,
-               self.direction == VERTICAL]
-
-
-
+    def display_box(self):
+        return str_size(self.display())
 
 
     @property
@@ -797,17 +858,18 @@ if __name__ == "__main__":
     direction = 1
     box = [16, 2]
 
-    m = Menu(name='menu', box=box, direction=0, items=txts_div, align_h=0, align_v=1, item_divider='', loop_divider='--')
-    #m.loop = True
-    #print(m.items_with_divs)
-    #print(m.items_to_strings())
-    #print('\n'.join(['0'*m.display_box()[0]]*m.display_box()[1]))
-    print(m.items_with_divs)
-    print(m.items_to_strings())
+    m = Menu(name='menu', box=box, direction=0, items=txts_div, align_h=0, align_v=0, item_divider='', loop_divider='--')
+    m.loop = True
+    #print(m.content)
+
+    #print(m.items)
+    #items_insert_divs = Menu.items_insert_divs(m.items, m.item_divider, m.loop_divider, m.loop)
+    #print(items_insert_divs)
+
+
     print(str_size(m.content))
     print(m.content)
     #m.loop = True
-
     print(' ')
     print('start')
     print(' ')
@@ -816,12 +878,3 @@ if __name__ == "__main__":
         print(m.content_offset)
         print('-------------')
         m.offset -= 1
-
-    '''
-    for i in txts_div:
-        offset = get_align_offset(i, box, hor=1, vert=1)
-        print('-'*box[0])
-        print('offset: ', offset)
-        string = offset_string(i, box, offset)
-        print(string)
-    '''
