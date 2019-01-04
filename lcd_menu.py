@@ -1,111 +1,186 @@
+HORIZONTAL = 0
+VERTICAL = 1
 
 ALIGN_LEFT = 0
 ALIGN_CENTER = 1
 ALIGN_RIGHT = 2
+ALIGN_TOP = 0
+ALIGN_BOTTOM = 2
 
-SELECT                  = 0
-RIGHT                   = 1
-DOWN                    = 2
-UP                      = 3
-LEFT                    = 4
+SELECT = 0
+RIGHT = 1
+DOWN = 2
+UP = 3
+LEFT = 4
 
-class Line(object):
 
-    def __init__(self, txt='', box_w=16, align=ALIGN_LEFT):
-        self.txt = txt
-        self.box_w = box_w
-        self.loop = True
-        self.align = align
-        self.position = 0
-        self.loop_divider = '   '
-        self.filler = ' '
-        self.is_focused = False
+def str_size(string):
+    """Dimensions of string once printed. Units are char.
 
-    def __repr__(self):
-        return self.display_box()
+    Parameters:
+        string (str):
 
-    def auto_box_w(self):
-        self.box_w = len(self.txt)
+    Returns:
+        list: List of int [width, height]
+    """
 
-    @property
-    def box_h(self):
-        return 1
+    rows = string.split('\n')
+    col = max([len(row) for row in rows])
 
-    @property
-    def is_focused(self):
-        return self._is_focused
+    return [col, len(rows)]
 
-    @is_focused.setter
-    def is_focused(self, val):
-        self._is_focused = val
-        if self.is_focused:
-            print('Focused:')
-            print(self)
-            pass
+def sum_iters(*iterables):
+    """Sum iterables component-wise
 
-    @property
-    def w(self):
-        if self.loop and len(self.txt) > self.box_w:
-            return len(self.txt) + len(self.loop_divider)
-        else:
-            return len(self.txt)
+    Parameters:
+        *iterables (list): sequence of iterables
 
-    @property
-    def h(self):
-        return 1
+    Returns:
+        list:
 
-    def display(self):
-        if self.loop and len(self.txt) > self.box_w:
-            return self.txt + self.loop_divider
-        else:
-            return self.txt
+    """
+    return [sum(i) for i in zip(*iterables)]
 
-    def display_box(self):
-        # alignement
-        align_offset = 0 
-        if self.align == ALIGN_CENTER:
-            align_offset = round((self.box_w/2)-(self.w/2))
-        elif self.align == ALIGN_RIGHT:
-                align_offset = self.box_w - self.w
+def prod_iters(*iterables):
+    """Product iterables component-wise
 
-        if self.loop and len(self.txt) > self.box_w:
-            align_offset = 0
-        align_offset += self.position
-        txt = ''
+    Parameters:
+        *iterables (list): sequence of iterables
 
-        # offset
-        for i in range(self.box_w):
-            t = self.filler
+    Returns:
+        list:
+
+    """
+    zipped = zip(*iterables)
+    prod = []
+    for cols in zipped:
+        p = 1
+        for col in cols:
+            p *= col
+        prod.append(p)
+    return prod
+
+def get_align_offset(string, box, hor=ALIGN_LEFT, vert=ALIGN_TOP):
+    """Returns the positional offset of aligning a string inside a box
+
+    Parameters:
+        string (str): String to align
+        box (list): List of int [width, height] Box size
+        hor (int): Horizontal align constant
+        vert (int): Vertical align constant
+
+    Returns:
+        list: List of int [x, y]
+
+    """
+
+    str_list = string.split('\n')
+    size = str_size(string)
+    delta = [box[0]-size[0], box[1]-size[1]]
+    center_x = float(hor)*float(delta[0])/2.0
+    center_y = float(vert)*float(delta[1])/2.0
+
+    return [round(center_x), round(center_y)]
+
+
+
+
+def get_loop_offset(pos, box):
+    """Loops a position around a box
+
+    Parameters:
+        pos (list): List of int [x, y] Position
+        box (list): List of int [width, height]
+
+    Returns:
+        list: List of int [x, y]
+
+    """
+
+    return [pos[0] % box[0], pos[1] % box[1]]
+
+
+def offset_string(string, box, offset):
+    """Move a string inside a box
+
+    Parameters:
+        string (str): 
+        box (list): List of int [width, height]
+        offset (list): List of int [x, y]
+
+    Returns:
+        string: Modified string
+    """
+    
+    #str_list = string.split('\n')
+    new_str = ''
+    for row in range(box[1]):
+        for col in range(box[0]):
+                x = col-offset[0]
+                y = row-offset[1]
+                new_str += get_char(string, [x, y])
+                '''
             try:
-
-                pos = i-align_offset
-                # looping
-                if self.loop:
-                    if len(self.txt) > self.box_w:
-                        pos = pos % self.w
-                    else:
-                        pos = pos % (self.box_w + 1)
-                if pos >= 0:
-                    t = self.display()[pos]
+                if x < 0 or y < 0:
+                    raise
+                new_str += str_list[y][x]
             except:
-                pass
+                new_str += ' '
+                '''
+    return new_str
+'''
+def get_offset_char(string, box, pos, offset):
+    str_list = string.split('\n')
+    new_str = ' '
+    for row in range(box[1]):
+        for col in range(box[0]):
+            if [col, row] == pos:
+                try:
+                    x = col-offset[0]
+                    y = row-offset[1]
+                    if x < 0 or y < 0:
+                        raise
+                    new_str = str_list[y][x]
+                except:
+                    pass
+    return new_str
 
-            txt += t
+def get_offset_char2(string, box, pos):
+    for row in range(box[1]):
+        for col in range(box[0]):
+            if [col, row] == pos:
+                x = pos[0]
+                y = pos[1]
+                return get_char(string, pos)
+    return ' '
+'''
 
-        return txt
+def get_char(string, pos):
+    str_list = string.split('\n')
+    try:
+        if pos[0] < 0 or pos[1] < 0:
+            raise
+        return str_list[ pos[1] ][ pos[0] ]
+    except:
+        return ' '
 
 
-class Menu_Abstract(object):
+class Menu(object):
 
-    def __init__(self, name='', box_w=16, box_h=2, auto_size=False,
+    def __init__(self, name='', box=[16, 2], auto_size=False,
                  parent=None, items=[], loop=False, focus_end=True,
-                 cursor_pos=[0, 0]):
+                 cursor_pos=[0, 0],
+                 direction=HORIZONTAL, align_h=ALIGN_LEFT, align_v=ALIGN_TOP,
+                 item_divider='', loop_divider='  '):
         self.name = name
-        self.box_w = box_w
-        self.box_h = box_h
+        self.box = box
         self.loop = loop
         self.parent = parent
         self.focus_end = focus_end
+        self.direction = direction
+        self.align_h = align_h
+        self.align_v = align_v
+        self.offset = 0
         # Hidden
         self._cursor_pos = cursor_pos
         self._items = items
@@ -123,8 +198,179 @@ class Menu_Abstract(object):
         self.do_select = None
         self.do_any = None
 
+        self.item_divider = item_divider
+        self.loop_divider = loop_divider
+
     def __repr__(self):
-        return '<Menu_Abstract: {0}>'.format(self.items)
+        return '<Menu: {0}>'.format(self.items)
+
+    def __str__(self):
+        return self.display_box()
+
+    @property
+    def items_with_divs(self):
+        """Return list of items with added dividers
+
+        Returns:
+            list: list of items
+        """
+
+        str_items = [Menu.item_as_str(item) for item in self.items]
+        complete_list = []
+        str_list = []
+
+        # Insert Dividers
+        for idx, string in enumerate(str_items):
+            str_list.append(string)
+            complete_list.append(self.items[idx])
+            if (idx < len(str_items) - 1):
+                str_list.append(self.item_divider)
+                complete_list.append(self.item_divider)
+
+        # Insert Loop Dividier
+        if self.loop == True:
+            complete_list.append(self.loop_divider)
+
+        return complete_list
+
+    @staticmethod
+    def item_as_str(item):
+        if isinstance(item, str):
+            # txt
+            #w, h = Menu.str_size(i)
+            return item
+        elif isinstance(item, str):
+            # Menu
+            return
+
+    def items_to_strings(self):
+        items = self.items_with_divs
+        items_str = [Menu.item_as_str(item) for item in items]
+        items_size = [str_size(string) for string in items_str]
+        max_item_size = [max(i) for i in zip(*items_size)]
+        base_offset = [0, 0]
+        new_items_str = []
+
+        for item in items:
+            # item
+            string = Menu.item_as_str(item)
+
+            if(string):
+                # if string is not empty
+                size = str_size(string)
+                new_str = ''
+                str_list = string.split('\n')
+                # box
+                axis_flipped = [not b for b in self.axis]
+                max_item_size_along_direction = prod_iters(
+                    axis_flipped, max_item_size)
+                item_box = [max(i) for i in zip(
+                    max_item_size_along_direction, size)]
+
+                # offset
+                offset = base_offset
+                align_offset = get_align_offset(string, item_box,
+                                                hor=self.align_h,
+                                                vert=self.align_v)
+                offset = [offset[0] + align_offset[0],
+                          offset[1] + align_offset[1]]
+
+                # item_box loop
+                for row in range(item_box[1]):
+                    for col in range(item_box[0]):
+                        # offset character
+                        char_offset = offset
+
+                        # apply offset
+                        #new_str += get_offset_char(string, item_box,
+                        #                           [col, row], char_offset)
+                        char_offset = [col-offset[0], row-offset[1]]
+                        new_str += get_char(string, [char_offset[0], char_offset[1]])
+                    # put back newline char
+                    if row < item_box[1]-1:
+                        new_str += '\n'
+
+                new_items_str.append(new_str)
+        return new_items_str
+
+    def max_items_box(self):
+        strings = self.items_to_strings()
+        return max([str_size(string) for string in strings])
+
+    def display_box(self):
+        return str_size(self.display())
+
+    @property
+    def content(self):
+        strings = self.items_to_strings()
+        items_box = self.max_items_box()
+        ordered_strings = strings
+
+        if self.direction == HORIZONTAL:
+            new_string = ''
+            ordered_strings = []
+            for row in range(items_box[1]):
+                cols = ''
+                for string in strings:
+                    str_list = string.split('\n')
+                    cols += str_list[row]
+                ordered_strings.append(cols)
+
+        return '\n'.join(ordered_strings)
+
+    @property
+    def content_offset(self):
+        string = self.content
+        str_list = string.split('\n')
+        box = str_size(string)
+        #print('box: ', box)
+        offset = prod_iters(self.axis, [self.offset]*2)
+
+        new_str = ''
+        for row in range(box[1]):
+            for col in range(box[0]):
+                # offset character
+                char_offset = [offset[0]+col, offset[1]+row]
+
+                if self.loop:
+                    char_offset = get_loop_offset(char_offset, box)
+                    #print('off: ', char_offset)
+
+                # apply offset
+                new_str += get_char(string, [char_offset[0], char_offset[1]])
+                '''
+                try:
+                    new_str += str_list[char_offset[1]][char_offset[0]]
+                except:
+                    new_str += ' '
+                '''
+            # put back newline char
+            if row < box[1]-1:
+                new_str += '\n'
+        return new_str
+
+
+
+
+    @property
+    def axis(self):
+        return [self.direction == HORIZONTAL,
+               self.direction == VERTICAL]
+
+
+
+
+
+    @property
+    def w(self):
+        box = Menu.str_size(self.display_box())
+        return box[0]
+
+
+    @property
+    def h(self):
+        box = Menu.str_size(self.display_box())
+        return box[1]
 
 
     @property
@@ -268,17 +514,15 @@ class Menu_Abstract(object):
             except:
                 pass
 
-class Menu_h(Menu_Abstract):
+class Menu_h(Menu):
+
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.divider_line = Line('  ')
-        self.divider_line.auto_box_w()
+        self.item_divider = Line('  ')
+        self.item_divider.auto_box_w()
         self.loop_divider = Line('  ')
         self.loop_divider.auto_box_w()
-
-    def __repr__(self):
-        return self.display_box()
 
     def auto_box_w(self):
         self.box_w = self.w
@@ -332,9 +576,9 @@ class Menu_h(Menu_Abstract):
                 total.append(self.items[idx].box_w)
         except:
             pass
-        return sum(total) + (self.divider_line.box_w * max(0, item_idx) )
+        return sum(total) + (self.item_divider.box_w * max(0, item_idx) )
 
-
+    '''
     @property
     def w(self):
         total = []
@@ -342,12 +586,13 @@ class Menu_h(Menu_Abstract):
             total.append(i.box_w)
 
         answer = sum(total)
-        if self.divider_line:
-            answer += (self.divider_line.box_w * (len(total) - 1))
+        if self.item_divider:
+            answer += (self.item_divider.box_w * (len(total) - 1))
         if self.loop and self.loop_divider:
             answer += self.loop_divider.box_w
 
         return answer
+    '''
 
     @property
     def h(self):
@@ -357,11 +602,15 @@ class Menu_h(Menu_Abstract):
         return max(total)
 
     def display(self, cursor=False):
+
         rows = []
         for row in range(self.box_h):
             cols = []
             for idx, item in enumerate(self.items):
                 txt = ''
+                if isinstance(item, Menu):
+                    txt = item.display().split('\n')[row]
+                '''
                 try:
                     if not cursor:
                         txt = item.display_box().split('\n')[row]
@@ -372,10 +621,10 @@ class Menu_h(Menu_Abstract):
                 cols.append(txt)
                 if (idx < len(self.items) - 1):
                     if not cursor:
-                        cols.append(self.divider_line.display_box())
+                        cols.append(self.item_divider.display_box())
                     else:
-                        cur_div_txt = '0'*self.divider_line.w
-                        cur_div = Line(txt=cur_div_txt, box_w=self.divider_line.box_w)
+                        cur_div_txt = '0'*self.item_divider.w
+                        cur_div = Line(txt=cur_div_txt, box_w=self.item_divider.box_w)
                         cols.append(cur_div.display_box())
                 elif self.loop:
                     if not cursor:
@@ -384,7 +633,7 @@ class Menu_h(Menu_Abstract):
                         cur_div_txt = '0'*self.loop_divider.w
                         cur_div = Line(txt=cur_div_txt, box_w=self.loop_divider.box_w)
                         cols.append(cur_div.display_box())
-
+                '''
             rows.append(''.join(cols))
         return '\n'.join(rows)
 
@@ -406,7 +655,7 @@ class Menu_h(Menu_Abstract):
         return self.offset_h(offset=amount, txt=disp_txt)
 
 
-class Menu_v(Menu_Abstract):
+class Menu_v(Menu):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -415,8 +664,8 @@ class Menu_v(Menu_Abstract):
         self.btn_select = [SELECT, ]
         self.btn_more = [RIGHT, ]
         self.btn_less = [LEFT, ]
-        #self.divider_line = Line('---', box_w=3)
-        self.divider_line = None
+        #self.item_divider = Line('---', box_w=3)
+        self.item_divider = None
         #self.loop_divider = Line('!!!!!!!!!!!!!!!!!', box_w=box_w)
         self.loop_divider = None
 
@@ -469,8 +718,8 @@ class Menu_v(Menu_Abstract):
                 total.append(self.items[idx].box_h)
         except:
             pass
-        if self.divider_line:
-            return sum(total) + (self.divider_line.box_h * max(0, item_idx) )
+        if self.item_divider:
+            return sum(total) + (self.item_divider.box_h * max(0, item_idx) )
         else:
             return sum(total)
 
@@ -488,8 +737,8 @@ class Menu_v(Menu_Abstract):
             total.append(i.box_h)
 
         answer = sum(total)
-        if self.divider_line:
-            answer += (self.divider_line.box_h * (len(total) - 1))
+        if self.item_divider:
+            answer += (self.item_divider.box_h * (len(total) - 1))
         if self.loop and self.loop_divider:
             answer += self.loop_divider.box_h
 
@@ -503,12 +752,12 @@ class Menu_v(Menu_Abstract):
             else:
                 rows.append(''.join(item.display_box(txt=item.cursor_display())))
             if idx < len(self.items) - 1:
-                if self.divider_line:
+                if self.item_divider:
                     if not cursor:
-                        rows.append(self.divider_line.display_box())
+                        rows.append(self.item_divider.display_box())
                     else:
-                        cur_div_txt = '0'*self.divider_line.w
-                        cur_div = Line(txt=cur_div_txt, box_w=self.divider_line.box_w)
+                        cur_div_txt = '0'*self.item_divider.w
+                        cur_div = Line(txt=cur_div_txt, box_w=self.item_divider.box_w)
                         rows.append(cur_div.display_box())
             elif self.loop:
                 if self.loop_divider:
@@ -541,123 +790,38 @@ class Menu_v(Menu_Abstract):
 
 if __name__ == "__main__":
 
-    back_item = Menu_v(box_w = 4)
-    back_item_title = Line('BACK')
-    back_item_title.auto_box_w()
-    back_item_value = Line('<---')
-    back_item_value.box_w = back_item_title.box_w
-    back_item.items = [back_item_title, back_item_value]
+    #menu = Menu(name='menu', direction=Menu.VERTICAL, items= ['Blop', 'Cola!!'])
+    #print(menu.display())
+    txts_div = ['BLOP\nlol\noff', 'COLAAA!', 'man']
+    print(str_size(txts_div[0]))
+    direction = 1
+    box = [16, 2]
 
+    m = Menu(name='menu', box=box, direction=0, items=txts_div, align_h=0, align_v=1, item_divider='', loop_divider='--')
+    #m.loop = True
+    #print(m.items_with_divs)
+    #print(m.items_to_strings())
+    #print('\n'.join(['0'*m.display_box()[0]]*m.display_box()[1]))
+    print(m.items_with_divs)
+    print(m.items_to_strings())
+    print(str_size(m.content))
+    print(m.content)
+    #m.loop = True
 
-    real_Menu = Menu_h(box_h=2)
-
-    ttb_item = Menu_v(box_w = 5)
-    ttb_item_title = Line('TURN', box_w=5)
-    ttb_item_value = Line('TABLE')
-    ttb_item_value.box_w = ttb_item_title.box_w
-    ttb_item.items = [ttb_item_title, ttb_item_value]
-
-    stops_item = Menu_v(box_w=4)
-    stops_item_title = Line('Stop')
-    stops_item_title.auto_box_w()
-    stops_item_value = Line('32')
-    stops_item_value.box_w = stops_item_title.box_w
-    stops_item_value.align = ALIGN_CENTER
-    stops_item.items = [stops_item_title, stops_item_value]
-
-    wait_item = Menu_v(box_w=4)
-    wait_item_title = Line('Wait')
-    wait_item_title.auto_box_w()
-    wait_item_value = Line('5')
-    wait_item_value.box_w = wait_item_title.box_w
-    wait_item_value.align = ALIGN_CENTER
-    wait_item.items = [wait_item_title, wait_item_value]
-
-    setting_item = Menu_v(box_w=4)
-    setting_item_title = Line('Settings')
-    setting_item_title.auto_box_w()
-    setting_item_value = Line('')
-    setting_item_value.box_w = setting_item_title.box_w
-    setting_item_value.align = ALIGN_CENTER
-    setting_item.items = [setting_item_title, setting_item_value]
-    setting_item.auto_box()
-
-    real_Menu.items = [ttb_item, back_item, stops_item, wait_item, setting_item]
-    print(real_Menu.display())
-
-    real_Menu.focus_end = False
-    #real_Menu.loop = True
-    real_Menu.on_pressed(SELECT)
-    print('turns\n')
-    for i in range(5):
-        real_Menu.on_pressed(RIGHT)
-        print(real_Menu)
-
-    print(ttb_item.cursor_display())
-
+    print(' ')
+    print('start')
+    print(' ')
+    print('-------------')
+    for i in range(0, 10):
+        print(m.content_offset)
+        print('-------------')
+        m.offset -= 1
 
     '''
-
-    real_menuV = Menu_v()
-    real_menuV.focus_end = False
-
-    ttb_itemV = Menu_h()
-    ttb_itemV_title = Line('TURN')
-    ttb_itemV_title.auto_box_w()
-    ttb_itemV_value = Line('TABLE')
-    ttb_itemV_title.auto_box_w()
-    ttb_itemV.items = [ttb_itemV_title, ttb_itemV_value]
-
-    back_itemV = Menu_h()
-    back_itemV_title = Line('Back')
-    back_itemV_title.auto_box_w()
-    back_itemV_value = Line('<---')
-    back_itemV_title.auto_box_w()
-    back_itemV.items = [back_itemV_title, back_itemV_value]
-
-    stops_itemV = Menu_h()
-    stops_itemV_title = Line('Stop')
-    stops_itemV_title.auto_box_w()
-    stops_itemV_value = Line('32')
-    stops_itemV_title.auto_box_w()
-    stops_itemV.items = [stops_itemV_title, stops_itemV_value]
-
-    wait_itemV = Menu_h()
-    wait_itemV_title = Line('Wait')
-    wait_itemV_title.auto_box_w()
-    wait_itemV_value = Line('5')
-    wait_itemV_title.auto_box_w()
-    wait_itemV.items = [wait_itemV_title, wait_itemV_value]
-
-    settings_itemV = Menu_v()
-    settings_itemV_title = Line('Sett', box_w=16)
-    settings_itemV_value = Line('iinn', box_w=16)
-    settings_itemV_third = Line('ngss', box_w=16)
-    settings_itemV_value.align = ALIGN_RIGHT
-    settings_itemV_third.align = ALIGN_CENTER
-    settings_itemV.items = [settings_itemV_title, settings_itemV_value, settings_itemV_third]
-    settings_itemV.auto_box()
-
-    real_menuV.items = [ttb_itemV, back_itemV, stops_itemV, settings_itemV, wait_itemV]
-    real_menuV.loop = True
-    print('______________')
-    print(real_menuV.display())
-    print('______________')
-    print('______________')
-    print(real_menuV.h)
-
-    def sel(self):
-        print('select', self)
-
-    real_menuV.focus_end = False
-    back_itemV.do_select = sel
-    real_menuV.on_pressed(SELECT)
-    for i in range(25):
-        #print(real_menuV.items_focus_idx)
-        #print(real_menuV.item_pos(real_menuV.items_focus_idx))
-        real_menuV.on_pressed(LEFT)
-        print(real_menuV)
-        #print(real_menuV.offset_v(-i))
-        print('---------')
-    #real_menuV.next()
+    for i in txts_div:
+        offset = get_align_offset(i, box, hor=1, vert=1)
+        print('-'*box[0])
+        print('offset: ', offset)
+        string = offset_string(i, box, offset)
+        print(string)
     '''
