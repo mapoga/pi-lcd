@@ -1,7 +1,7 @@
 from time import sleep
 import math
 import Adafruit_CharLCD as Lcd
-from lcd_menu import Menu, Action
+from lcd_menu import Menu, Action, App
 import lcd_menu
 
 
@@ -49,13 +49,16 @@ def lcd_fast_message(lcd, string, string_prev=''):
     # only update what has changed
     # much faster for small changes
     
-    box = [lcd._cols, lcd._lines]
+    #box = [lcd._cols, lcd._lines]
     rows = string.split('\n')
     rows_prev = string_prev.split('\n')
 
-    txt = []
-    for y, line in enumerate(rows):
-        for x, char in enumerate(line):
+    for y in range(lcd._lines):
+        for x in range(lcd._cols):
+            try:
+                char = rows[y][x]
+            except:
+                char = ' '
             try:
                 char_prev = rows_prev[y][x]
             except:
@@ -77,8 +80,39 @@ def pprint(p, sep='-'):
     print(sep*lcd_menu.string_size(str(p))[0])
 
 
-def deeper(menu):
-    menu.parent_topmost().items = [menu.selected()]
+def focus_deeper_fct(menu):
+    dest = str(menu.selected())
+    try:
+        dest = menu.selected().name
+    except:
+        pass
+    print('focus deeper: {} -> {}'.format(menu.name,dest))
+    if isinstance(menu.selected(), Menu):
+        menu.parent_topmost().focus = menu.selected()
+
+
+def focus_back_fct(menu):
+    global app
+    print('focus back: {} -> {}'.format(menu.name, menu.parent.name))
+    app.focus = menu.parent
+    app.menu = app.focus
+    print('2'*20)
+
+
+def next_fct(menu):
+    print('NEXT')
+    try:
+        menu.focus.next()
+    except:
+        pass
+
+def prev_fct(menu):
+    try:
+        menu.focus.prev()
+    except:
+        pass
+
+
 # LCD
 lcd = Lcd.Adafruit_CharLCDPlate()
 lcd.blink(True)
@@ -87,24 +121,41 @@ lcd.blink(True)
 btns = []
 for key, val in BUTTONS.items():
     btn = Button(key, val, check_fct=lcd.is_pressed, check_args=[val])
-    btn.continuous = key == 'UP'
+    #btn.continuous = key == 'UP'
     btns.append(btn)
+app = None
+focus_deeper = Action(trigger=BUTTONS['SELECT'], action=focus_deeper_fct)
+focus_back = Action(trigger=BUTTONS['SELECT'], action=focus_back_fct)
+down = Action(trigger=BUTTONS['DOWN'], action=next_fct)
+up = Action(trigger=BUTTONS['UP'], action=prev_fct)
+right = Action(trigger=BUTTONS['RIGHT'], action=next_fct)
+left = Action(trigger=BUTTONS['LEFT'], action=prev_fct)
+app = App()
 
-deeper = Action(trigger=BUTTONS['SELECT'], action=deeper)
-
-app = Menu(name='app', box=LCD_SIZE, loop=True)
+#app = Menu(name='app', box=LCD_SIZE, loop=True)
+#app.actions = [deeper]
 welcome = Menu(name='welcome', box=LCD_SIZE,items=['Welcome'], align_h=1, align_v=1, cursor_pos=[4,0])
-welcome.actions = [deeper]
-settings = Menu(name='settings', box=[8,1], items=['Settings', 'Blop', 'Smash'])
-home = Menu(name='home', box=LCD_SIZE, direction=1, items=['Turntable', 'Settings', 'Speed', 'Steps', 'Wait'], cursor_pos=[1,0])
-app.items = [welcome]
+welcome.actions = [focus_deeper]
+settings = Menu(name='settings', box=[8,1], items=['Yeah!', 'Blop', 'Smash'], item_div='--')
+settings.actions = [focus_back, right, left]
+home = Menu(name='home', box=LCD_SIZE, direction=1,
+    items=['Turntable', settings, 'Speed', 'Steps', 'Wait'], cursor_pos=[1,0])
+home.actions = [focus_deeper, down, up]
+#app.items = [welcome]
+app.menu = home
+
+
+blop = Menu(name='blop', items=['Blop'], auto_box=True)
+pprint(blop)
+blop.set_box_to_content()
+pprint(blop)
 
 lcd_fast_message(lcd, str(app))
-lcd_cursor(lcd, app.cursor_display(pos=True))
+lcd_cursor(lcd, app.cursor())
 pprint(str(app))
-pprint(app.cursor_display())
+#pprint(app.cursor_display())
 pprint(app.focus)
-pprint(app.selected().name)
+#pprint(app.selected().name)
 #app.focus = welcome
 
 
@@ -112,7 +163,12 @@ while True:
     old_lcd_fast_message = str(app)
     for b in btns:
         if b.value:
-
+            print(app.focus.name)
+            print('1'*20)
+            app.focus.check_actions(b.id)
+            print('3'*20)
+            #app.menu = app.focus
+            '''
             if b.name == 'RIGHT':
                 app.focus.next()
                 #app.focus.offset += 1
@@ -120,16 +176,21 @@ while True:
                 app.focus.prev()
                 #app.focus.offset -= 1
             elif b.name == 'SELECT':
+                pass
                 #if app.focus == app:
                 #    app.items = [home]
                 #    app.focus = home
-                selected = app.focus.selected()
-                app.items = [selected]
-                app.focus = selected
+                #selected = app.focus.selected()
+                #app.items = [selected]
+                #app.focus = selected
+            '''
 
 
             lcd_fast_message(lcd, str(app), string_prev=old_lcd_fast_message)
-            pprint(str(app))
-            pprint(app.cursor_display())
+            #pprint(str(app))
+            #pprint(app.cursor_display())
+            #pprint(app.content())
+            #pprint(app.selected_pos())
+            #pprint(app.cursor_display())
 
-            lcd_cursor(lcd, app.cursor_display(pos=True))
+            lcd_cursor(lcd, app.cursor())
