@@ -49,7 +49,6 @@ def lcd_fast_message(lcd, string, string_prev=''):
     # only update what has changed
     # much faster for small changes
     
-    #box = [lcd._cols, lcd._lines]
     rows = string.split('\n')
     rows_prev = string_prev.split('\n')
 
@@ -94,9 +93,8 @@ def focus_deeper_fct(menu):
 def focus_back_fct(menu):
     global app
     print('focus back: {} -> {}'.format(menu.name, menu.parent.name))
+    app.menu = menu.parent
     app.focus = menu.parent
-    app.menu = app.focus
-    print('2'*20)
 
 
 def next_fct(menu):
@@ -117,13 +115,22 @@ def prev_fct(menu):
 lcd = Lcd.Adafruit_CharLCDPlate()
 lcd.blink(True)
 
-# BTNS
+app = None
+
+
+###############################################################################
+# Buttons
+###############################################################################
 btns = []
 for key, val in BUTTONS.items():
     btn = Button(key, val, check_fct=lcd.is_pressed, check_args=[val])
     #btn.continuous = key == 'UP'
     btns.append(btn)
-app = None
+
+###############################################################################
+# Actions
+###############################################################################
+
 focus_deeper = Action(trigger=BUTTONS['SELECT'], action=focus_deeper_fct)
 focus_back = Action(trigger=BUTTONS['SELECT'], action=focus_back_fct)
 down = Action(trigger=BUTTONS['DOWN'], action=next_fct)
@@ -132,8 +139,11 @@ right = Action(trigger=BUTTONS['RIGHT'], action=next_fct)
 left = Action(trigger=BUTTONS['LEFT'], action=prev_fct)
 app = App()
 
-#app = Menu(name='app', box=LCD_SIZE, loop=True)
-#app.actions = [deeper]
+###############################################################################
+# Menus
+###############################################################################
+
+
 welcome = Menu(name='welcome', box=LCD_SIZE,items=['Welcome'], align_h=1, align_v=1, cursor_pos=[4,0])
 welcome.actions = [focus_deeper]
 settings = Menu(name='settings', box=[8,1], items=['Yeah!', 'Blop', 'Smash'], item_div='--')
@@ -163,10 +173,7 @@ while True:
     old_lcd_fast_message = str(app)
     for b in btns:
         if b.value:
-            print(app.focus.name)
-            print('1'*20)
             app.focus.check_actions(b.id)
-            print('3'*20)
             #app.menu = app.focus
             '''
             if b.name == 'RIGHT':

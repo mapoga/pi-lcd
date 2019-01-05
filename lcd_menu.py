@@ -209,13 +209,22 @@ class Action(object):
             self.do(*args, **kwargs)
             return True
 
+class Label():
+    def __init__(self):
+        pass
+
+class PushButton():
+    def __init__(self):
+        pass
+
+
 class Menu(object):
 
     def __init__(self, name='', box=[16, 2], auto_size=False,
                  parent=None, items=[], loop=False, selected_end=True,
                  cursor_pos=[0, 0],
                  direction=HORIZONTAL, align_h=ALIGN_LEFT, align_v=ALIGN_TOP,
-                 item_div='', loop_div='  ', auto_box=True):
+                 item_div='', loop_div='  ', auto_box=True, sub=[]):
         # Hidden
         self._cursor_pos = [0, 0]
         self._items = []
