@@ -166,6 +166,22 @@ def string_align_move(string, box, offset, align_h, align_v, loop=False, filler=
     # apply offset
     return string_move(string, box, offset, loop, filler=filler)
 
+class Action(object):
+
+    def __init__(self, trigger, action, action_args=[], action_kwargs=[]):
+        self.trigger = trigger
+        self.action = action
+        self.action_args = action_args
+        self.action_kwargs = action_kwargs
+
+    def do(self):
+        return self.action(*self.action_args, **self.action_kwargs)
+
+    def check(self, trigger, dry_run=False):
+        if trigger == self.trigger:
+            if not dry_run:
+                self.do()
+            return True
 
 class Menu(object):
 
@@ -194,17 +210,8 @@ class Menu(object):
         self.align_h = align_h
         self.align_v = align_v
         self.offset = 0
-        # Buttons
-        self.btn_next = []
-        self.btn_prev = []
-        self.btn_select = []
-        self.btn_more = []
-        self.btn_less = []
-        # Actions
-        self.do_more = None
-        self.do_less = None
-        self.do_select = None
-        self.do_any = None
+
+        self.actions = []
 
         self.item_div = item_div
         self.loop_div = loop_div
@@ -443,6 +450,7 @@ class Menu(object):
         pos_max = [max(self.box[0]-1, 0), max(self.box[1]-1, 0)]
         pos = [max(p) for p in zip(pos_min, pos)]
         pos = [min(p) for p in zip(pos_max, pos)]
+        
         return pos
 
     @cursor_pos.setter
@@ -475,9 +483,19 @@ class Menu(object):
     def cursor_display(self, pos=False):
         display = ''
         # generate from self
+        '''
         if self.parent_topmost().focus == self:
             pos_invert = [-self.cursor_pos[0], -self.cursor_pos[1]]
             display = string_move('1', self.box, pos_invert, False, filler=' ')
+        '''
+        '''
+        if self.parent_topmost().focus == self and self.items:
+            pos_invert = [-self.cursor_pos[0], -self.cursor_pos[1]]
+            display = string_move('1', self.box, pos_invert, False, filler=' ')
+        '''
+        if not self.items:
+            pos_invert = [-self.cursor_pos[0], -self.cursor_pos[1]]
+            string = string_move('1', self.box, pos_invert, False, filler=' ')
         else:
             # generate from items 
             items = []
@@ -486,8 +504,13 @@ class Menu(object):
                     # go deeper
                     items.append(item.cursor_display())
                 else:
-                    # blank for string
-                    items.append(string_move(' ', string_size(item), [0, 0], False, filler=' '))
+                    if item == self.selected():
+                        pos_invert = [-self.cursor_pos[0], -self.cursor_pos[1]]
+                        string = string_move('1', string_size(item), pos_invert, False, filler=' ')
+                        items.append(string)
+                    else:
+                        # blank for unselected
+                        items.append(string_move(' ', string_size(item), [0, 0], False, filler=' '))
 
             content_moved = self._items_content_moved(
                 items, self.box, self.offset, self.direction, self.loop,
@@ -501,8 +524,11 @@ class Menu(object):
             return display
 
 
-    def auto_box(self, w=True, h=True):
-        size = string_size(self.content())
+    def set_box_to_content(self, w=True, h=True):
+        content = self._items_content(self.items, self.box, self.direction, False,
+                                   self.align_h, self.align_v,
+                                   self.item_div, self.loop_div)
+        size = string_size(content)
         if w:
             self.box[0] = size[0]
         if h:
@@ -517,20 +543,21 @@ class Menu(object):
         return self.selected()
 
     def next(self):
-        self.select_index(self.selected_index + 1)
+        self.select_index(self.selected_index() + 1)
         return self.selected()
 
     def prev(self):
-        self.select_index(self.selected_index - 1)
+        self.select_index(self.selected_index() - 1)
         return self.selected()
 
     def select_index(self, index):
         if self.loop:
             # loop
-            self._items_idx = index % len(self.items)
+            self._index = index % len(self.items)
         else:
             # Ends
-            self._items_idx = max(min(index, len(self.items)-1), 0)
+            self._index = max(min(index, len(self.items)-1), 0)
+        self.offset = self.selected_index()
 
     def select(self, item):
         if item in self.items:
@@ -539,7 +566,7 @@ class Menu(object):
             raise ValueError('Selected item should be in items: {}',format(item))
 
     def selected_index(self):
-        return self._items_idx
+        return self._index
 
     def selected(self):
         return self.items[self.selected_index()]
@@ -576,6 +603,14 @@ class Menu(object):
 
     def selected_parent_topmost(self):
         self.selected = self.parent_topmost
+
+    '''
+    def selected_offset(self):
+        items = s
+        content = self._items_content(self.items, self.box, self.direction, self.loop,
+                                   self.align_h, self.align_v,
+                                   self.item_div, self.loop_div)
+    '''
 
     '''
 
