@@ -43,14 +43,13 @@ def prod_iters(*iterables):
     return prod
 
 
-def get_align_offset(string, box, align=[ALIGN_LEFT, ALIGN_TOP]):
+def get_align_offset(string, size, align):
     """Returns the positional offset of aligning a string inside a box
 
     Parameters:
         string (str): String to align
         box (list): List of int [width, height] Box size
-        hor (int): Horizontal align constant
-        vert (int): Vertical align constant
+        align (list): list of int
 
     Returns:
         list: List of int [x, y]
@@ -58,14 +57,14 @@ def get_align_offset(string, box, align=[ALIGN_LEFT, ALIGN_TOP]):
     """
 
     str_list = string.split('\n')
-    size = string_size(string)
-    delta = [-box[0]+size[0], -box[1]+size[1]]
+    str_size = string_size(string)
+    delta = [-size[0]+str_size[0], -size[1]+str_size[1]]
     center_x = float(align[0])*float(delta[0])/2.0
     center_y = float(align[1])*float(delta[1])/2.0
 
     return [round(center_x), round(center_y)]
 
-def get_loop_offset(pos, box):
+def get_loop_offset(pos, size):
     """Returns a position looped around a box
 
     Parameters:
@@ -77,7 +76,14 @@ def get_loop_offset(pos, box):
 
     """
 
-    return [pos[0] % box[0], pos[1] % box[1]]
+    return [pos[0] % size[0], pos[1] % size[1]]
+
+def pos_align_move(pos, string, size, offset, align, loop):
+    align_offset = get_align_offset(string, size, align=align)
+    offset = [offset[0] + align_offset[0] + pos[0], offset[1] + align_offset[1] + pos[1]]
+    if loop:
+        offset = get_loop_offset(offset, size)
+    return offset
 
 def get_char_at_pos(string, pos, filler=' '):
     """Returns the character at 2D position in string.
@@ -100,17 +106,7 @@ def get_char_at_pos(string, pos, filler=' '):
     except:
         return filler
 
-def find_char_pos(string, char):
-    rows = string.split('\n')
-    for row_idx, row in enumerate(rows):
-        index = row.find(char)
-        if index >= 0:
-            return [index, row_idx]
-
-    return None
-
-
-def string_move(string, box, offset, loop, filler=' '):
+def string_move(string, size, offset, loop, filler=' '):
     """Move and return a string inside a box
 
     Parameters:
@@ -125,23 +121,23 @@ def string_move(string, box, offset, loop, filler=' '):
     """
 
     new_str = ''
-    for row in range(box[1]):
-        for col in range(box[0]):
+    for row in range(size[1]):
+        for col in range(size[0]):
             char_offset = [col+offset[0], row+offset[1]]
             if loop:
-                char_offset = get_loop_offset(char_offset, box)
+                char_offset = get_loop_offset(char_offset, size)
             new_str += get_char_at_pos(string, char_offset, filler=filler)
-        if row < box[1]-1:
+        if row < size[1]-1:
             new_str += '\n'
 
     return new_str
 
-def string_align_move(string, box, offset, align_h, align_v, loop=False, filler=' '):
-    """Align and position a string in relation to a box 
+def string_align_move(string, size, offset, align, loop, filler=' '):
+    """Align and position a string in relation to a size 
 
     Parameters:
         string (str):
-        box (list): list of int [widht, height]
+        size (list): list of int [widht, height]
         offset (list): list of int [x, y]
         align_h (int): range(0-2)
         align_v (int): range(0-2)
@@ -154,25 +150,17 @@ def string_align_move(string, box, offset, align_h, align_v, loop=False, filler=
     """
 
     # calculate offset
-    align_offset = get_align_offset(string, box,
-                                    hor=align_h,
-                                    vert=align_v)
-    offset = [offset[0] + align_offset[0],
-              offset[1] + align_offset[1]]
-    # apply offset
-    return string_move(string, box, offset, loop, filler=filler)
-
-def pos_align_move(pos, string, size, offset, align, loop):
     align_offset = get_align_offset(string, size, align=align)
-    offset = [offset[0] + align_offset[0] + pos[0], offset[1] + align_offset[1] + pos[1]]
-    if loop:
-        offset = get_loop_offset(offset, size)
-    return offset
+    offset = [offset[0] + align_offset[0], offset[1] + align_offset[1]]
+    # apply offset
+    return string_move(string, size, offset, loop, filler=filler)
+
 
 class App():
 
     def __init__(self, menu=None):
         self.menu = menu
+        self.selected = menu
 
 
     def __str__(self):
@@ -188,7 +176,7 @@ class App():
 
     def cursor(self):
         return self.menu.cursor_display(pos=True)
-
+    '''
     def has_item(self, item, recursive=False):
 
         childrens = self.items
@@ -208,12 +196,13 @@ class App():
                 return True
             if recursive:
                 parent = current.parent
+    '''
 
 
 class Action():
 
-    def __init__(self, action, trigger=None, args=(), kwargs={}):
-        self.trigger = trigger
+    def __init__(self, action, triggers=[], args=(), kwargs={}):
+        self.triggers = triggers
         self.action = action
         self.args = args
         self.kwargs = kwargs
@@ -224,7 +213,7 @@ class Action():
         return self.action(*args, **kwargs)
 
     def check(self, trigger):
-        if trigger == self.trigger:
+        if trigger in self.triggers:
             return True
 
     def check_do(self, trigger, *args, **kwargs):
@@ -234,15 +223,17 @@ class Action():
 
 
 class Box():
-    def __init__(self, txt='', size=[0,0], cursor=True, cursor_pos=[0,0] ,auto_size=True, align=[ALIGN_CENTER, ALIGN_CENTER], loop=False, offset=[0,0], parent=None, *args, **kwargs):
+    def __init__(self, txt='', size=[0,0], above=None, under=None, cursor=True, cursor_pos=[0,0] ,auto_size=True, align=[ALIGN_CENTER, ALIGN_CENTER], loop=False, offset=[0,0], parent=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._txt = str(txt)
+        self._txt = txt
         self._size = size
         self.auto_size = auto_size
         self.align = align
         self.offset = offset
         self.loop = loop
         self.parent = parent
+        self.above = above
+        self._under = under
         self.cursor = cursor
         self._cursor_pos = cursor_pos
 
@@ -272,141 +263,41 @@ class Box():
         self._size = size
 
     @property
+    def under(self):
+        return self._under
+
+    @under.setter
+    def under(self, under):
+        self._under = under
+        self.under.above = self
+
+    @property
     def txt(self):
-        return self.string_align_move(self._txt, self.size, [-self.offset[0], -self.offset[1]], self.align, self.loop)
+        return string_align_move(str(self._txt), self.size, [-self.offset[0], -self.offset[1]], self.align, self.loop)
 
     @txt.setter
     def txt(self, txt):
-        self._txt = str(txt)
+        self._txt = txt
 
     @property
     def cursor_pos(self):
-        return self.pos_align_move([self._cursor_pos[0], self._cursor_pos[1]], self._txt, self.size, [self.offset[0], self.offset[1]], self.align, self.loop)
+        return self.process_pos(self._cursor_pos)
 
     @cursor_pos.setter
     def cursor_pos(self, pos):
         self._cursor_pos = pos
 
-    @staticmethod
-    def get_align_offset(string, size, align):
-        """Returns the positional offset of aligning a string inside a box
+    def bounds(self):
+        size = string_size(self._txt)
+        bottom_right = [size[0]-1, size[1]-1]
+        return self.process_pos([0,0], bottom_right)
 
-        Parameters:
-            string (str): String to align
-            box (list): List of int [width, height] Box size
-            align (list): list of int
+    def process_pos(self, *pos):
+        new_pos = []
+        for p in pos:
+            new_pos.append(pos_align_move(p, self._txt, self.size, self.offset, self.align, self.loop))
+        return new_pos
 
-        Returns:
-            list: List of int [x, y]
-
-        """
-
-        str_list = string.split('\n')
-        str_size = string_size(string)
-        delta = [-size[0]+str_size[0], -size[1]+str_size[1]]
-        center_x = float(align[0])*float(delta[0])/2.0
-        center_y = float(align[1])*float(delta[1])/2.0
-
-        return [round(center_x), round(center_y)]
-
-    @staticmethod
-    def get_loop_offset(pos, size):
-        """Returns a position looped around a box
-
-        Parameters:
-            pos (list): List of int [x, y] Position
-            box (list): List of int [width, height]
-
-        Returns:
-            list: List of int [x, y]
-
-        """
-
-        return [pos[0] % size[0], pos[1] % size[1]]
-
-    @staticmethod
-    def get_char_at_pos(string, pos, filler=' '):
-        """Returns the character at 2D position in string.
-        If none found use filler.
-
-        Parameters:
-            string (str): 
-            pos (list): List of int [x, y] Position
-            filler (str): Single character for filling. Space by default
-
-        Returns:
-            str: single character
-        """
-
-        str_list = string.split('\n')
-        try:
-            if pos[0] < 0 or pos[1] < 0:
-                raise
-            return str_list[pos[1]][pos[0]]
-        except:
-            return filler
-
-    @staticmethod
-    def string_move(string, size, offset, loop, filler=' '):
-        """Move and return a string inside a box
-
-        Parameters:
-            string (str): 
-            box (list): List of int [width, height]
-            offset (list): List of int [x, y]
-            loop (bool): True if string is looping
-            filler (str): Single character for filling. Space by default
-
-        Returns:
-            string: Modified string
-        """
-
-        new_str = ''
-        for row in range(size[1]):
-            for col in range(size[0]):
-                char_offset = [col+offset[0], row+offset[1]]
-                if loop:
-                    char_offset = get_loop_offset(char_offset, size)
-                new_str += get_char_at_pos(string, char_offset, filler=filler)
-            if row < size[1]-1:
-                new_str += '\n'
-
-        return new_str
-
-    @staticmethod
-    def string_align_move(string, size, offset, align, loop, filler=' '):
-        """Align and position a string in relation to a size 
-
-        Parameters:
-            string (str):
-            size (list): list of int [widht, height]
-            offset (list): list of int [x, y]
-            align_h (int): range(0-2)
-            align_v (int): range(0-2)
-            loop (bool): True if string is looping
-            filler (str): Single character for filling. Space by default
-
-        Returns:
-            str: Aligned and moved string
-
-        """
-
-        # calculate offset
-        align_offset = get_align_offset(string, size, align=align)
-        offset = [offset[0] + align_offset[0], offset[1] + align_offset[1]]
-        # apply offset
-        return string_move(string, size, offset, loop, filler=filler)
-
-    @staticmethod
-    def pos_align_move(pos, string, size, offset, align, loop):
-        align_offset = get_align_offset(string, size, align=align)
-        offset = [offset[0] + align_offset[0] + pos[0], offset[1] + align_offset[1] + pos[1]]
-        if loop:
-            offset = get_loop_offset(offset, size)
-        return offset
-
-    def downstream_cursor_pos(self):
-        pass
 
 
 class Label(Box):
@@ -426,10 +317,11 @@ class ActionReady():
         for action in self.actions:
             if action.check(trigger):
                 return True
+        return False
 
     def do(self):
         for action in self.actions:
-            action.do(self)
+            action.do(self, )
 
     def check_do(self, trigger):
         for action in self.actions:
@@ -453,7 +345,7 @@ class PushButton(Box, ActionReady):
             self.label = Label(label)
 
 class Items():
-    def __init__(self, items, index=0, loop=False, *args, **kwargs):
+    def __init__(self, items=[], index=0, loop=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._items = []
         self.items = items
@@ -470,6 +362,7 @@ class Items():
     @index.setter
     def index(self, index):
         self._index = index
+        self.update_pos()
 
 
     @property
@@ -490,6 +383,8 @@ class Items():
             item.parent = self
         self._items = new_items
 
+    def update_pos(self):
+        pass
 
     def first(self):
         self.index = 0
@@ -513,11 +408,21 @@ class Items():
     def selected_item(self):
         return self.items[self.index]
 
+    '''
+    def check(self, trigger):
+        self.selected_item().check(trigger)
 
-class ItemsMenu(Items, Box):
+    def do(self):
+        self.selected_item().do()
+
+    def check_do(self, trigger):
+        self.selected_item().check_do(trigger)
+    '''
+
+
+class ItemsMenu(Items, Box, ActionReady):
 
     def __init__(self, *args, orient=VERTICAL, div=Label(''), loop_div=Label(''), **kwargs):
-        print(args)
         super().__init__(*args, **kwargs)
         self.orient = orient
         self._div = div
@@ -533,6 +438,7 @@ class ItemsMenu(Items, Box):
                                     self.div,
                                     self.loop_div))
         return self.txt
+
 
     @property
     def div(self):
@@ -554,6 +460,9 @@ class ItemsMenu(Items, Box):
             div.parent = self
             return div
 
+    def update_pos(self):
+        self.offset = [0, -self.index]
+
     def item_size_request(self, item):
         item_size = string_size(str(item._txt))
         orient_max = [max(size) for size in zip(item_size, self.size)]
@@ -563,6 +472,18 @@ class ItemsMenu(Items, Box):
         if self.orient == HORIZONTAL:
             return [item_size[0], orient_max[1]]
         return self.size
+
+    '''
+    def check_do(self, trigger):
+        if not isinstance(self.selected_item(), Items):
+
+            self.selected_item().check_do(trigger)
+        else:
+            print('Alternate: ', self.actions, self)
+            ActionReady.check_do(self, trigger)
+            #self.check_do(trigger)
+    '''
+
 
     @staticmethod
     def axis(direction):
@@ -1155,6 +1076,9 @@ if __name__ == "__main__":
     pprint(menu)
     menu.offset = [-8,1]
     pprint(menu)
+    for i in range(15):
+        menu.offset = [menu.offset[0]+1, menu.offset[1]]
+        pprint(menu)
     pprint(friend)
     pprint(friend.cursor_pos)
     friend.offset = [0,0]
@@ -1167,3 +1091,4 @@ if __name__ == "__main__":
     friend.offset = [-2,0]
     pprint(friend)
     pprint(friend.cursor_pos)
+    pprint(friend.bounds())
