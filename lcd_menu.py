@@ -166,6 +166,11 @@ class App():
     def __str__(self):
         return str(self.menu)
 
+    def cursor(self):
+        return self.menu.cursor_display(pos=True)
+
+
+    '''
     @property
     def focus(self):
         return self.menu.focus
@@ -173,10 +178,7 @@ class App():
     @focus.setter
     def focus(self, focus):
         self.menu.focus = focus
-
-    def cursor(self):
-        return self.menu.cursor_display(pos=True)
-    '''
+    
     def has_item(self, item, recursive=False):
 
         childrens = self.items
@@ -296,7 +298,7 @@ class Box():
         new_pos = []
         for p in pos:
             new_pos.append(pos_align_move(p, self._txt, self.size, self.offset, self.align, self.loop))
-        return new_pos
+        return list(*new_pos)
 
 
 
@@ -544,7 +546,6 @@ class ItemsMenu(Items, Box, ActionReady):
                         str_list=string.split('\n')
                         cols += str_list[row]
                 ordered_strings.append(cols)
-        print(ordered_strings)
         return '\n'.join(ordered_strings)
 
     def update_offset(self):
@@ -554,18 +555,33 @@ class ItemsMenu(Items, Box, ActionReady):
         items = ItemsMenu._items_insert_divs(self.items, self.div, self.loop_div, loop)
         index = items.index(self.selected_item())
         axis = ItemsMenu.axis(self.orient)
-        '''
-        if index = len(self.items)-1:
-            item_length = [sum(i) for i in zip(*prod_iters(axis, self.size))]
-            menu_length = [sum(i) for i in zip(*prod_iters(axis, self.size))]
-        '''
 
+        # Offset at selected item position
         offset = [0,0]
         for i in range(index):
             item = self.items[i]
             if i < index:
                 offset = [offset[0]+item.size[0], offset[1]+item.size[1]]
         self.offset = prod_iters(axis, offset)
+
+        # Check if empty space at the end and get back a little
+        if not self.loop:
+            self_size = prod_iters(axis, self.size)
+            self_length = sum(self_size)
+
+            items_sizes = [i.size for i in items]
+            items_sizes_sum = [sum(i) for i in zip(*items_sizes)]
+            items_length = sum(prod_iters(axis, items_sizes_sum))
+
+            item_size = prod_iters(axis, self.selected_item().size)
+            item_length = sum(item_size)
+            remain = items_length - (sum(self.offset))
+
+            if remain < self_length:
+                if items_length >= self_length:
+                    self.offset = [axis[0]*(items_length-self_length), axis[1]*(items_length-self_length)]
+
+
         print(self.offset)
 
 

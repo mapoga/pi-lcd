@@ -16,11 +16,10 @@ LCD_SIZE = [16, 2]
 
 class Button(object):
 
-    def __init__(self, name, id, txt='', continuous=False,
+    def __init__(self, name, id, continuous=False,
                  check_fct=None, check_args=(), check_kwargs={}):
         self.name = name
         self.id = id
-        self.txt = txt or name
         self.continuous = continuous
         self.last_value = False
         # Check
@@ -164,7 +163,7 @@ welcome = PushButton('Welcome', parent=main, actions=[below_any])
 home = ItemsMenu(parent=main, align=[0, 0], actions=[vert_next, vert_prev, trigger_items_LR], loop=False)
 turntable = PushButton('Turntable', parent=home)
 settings = PushButton('Settings', parent=home)
-blop = PushButton('Blop', parent=home)
+blop = PushButton('Blop\nBlop2\nBlop3', parent=home)
 sauce = PushButton('sau\nsag', parent=home)
 colors = ItemsChoice(parent=main, align=[0,0], orient=0, actions=[hori_next, hori_prev])
 
@@ -196,8 +195,8 @@ while True:
             app.menu.check_do(btn.id)
             #app.menu = app.focus
 
-            print('i am printing')
             lcd_fast_message(lcd, str(app.menu), string_prev=old_lcd_fast_message)
+            print(app.menu.selected_item().cursor_pos)
             #pprint(str(app))
             #pprint(app.cursor_display())
             #pprint(app.content())
