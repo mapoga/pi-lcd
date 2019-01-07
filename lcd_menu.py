@@ -216,8 +216,8 @@ class Action():
         if trigger in self.triggers:
             return True
 
-    def check_do(self, trigger, *args, **kwargs):
-        if self.check(trigger):
+    def check_do(self, *args, **kwargs):
+        if self.check(kwargs['trigger']):
             self.do(*args, **kwargs)
 
 
@@ -310,7 +310,7 @@ class Label(Box):
 class ActionReady():
 
     def __init__(self, actions=[], *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        #super().__init__(*args, **kwargs)
         self.actions = actions
 
     def check(self, trigger):
@@ -321,11 +321,11 @@ class ActionReady():
 
     def do(self):
         for action in self.actions:
-            action.do(self, )
+            action.do(menu=self, )
 
-    def check_do(self, trigger):
+    def check_do(self, trigger=None):
         for action in self.actions:
-            action.check_do(trigger, self)
+            action.check_do(trigger=trigger, menu=self)
 
 
 class PushButton(Box, ActionReady):
@@ -362,7 +362,7 @@ class Items():
     @index.setter
     def index(self, index):
         self._index = index
-        self.update_pos()
+        self.update_offset()
 
 
     @property
@@ -383,7 +383,7 @@ class Items():
             item.parent = self
         self._items = new_items
 
-    def update_pos(self):
+    def update_offset(self):
         pass
 
     def first(self):
@@ -408,17 +408,6 @@ class Items():
     def selected_item(self):
         return self.items[self.index]
 
-    '''
-    def check(self, trigger):
-        self.selected_item().check(trigger)
-
-    def do(self):
-        self.selected_item().do()
-
-    def check_do(self, trigger):
-        self.selected_item().check_do(trigger)
-    '''
-
 
 class ItemsMenu(Items, Box, ActionReady):
 
@@ -428,8 +417,10 @@ class ItemsMenu(Items, Box, ActionReady):
         self._div = div
         self._loop_div = loop_div
 
-    def __str__(self):
-        self.txt = str(self._orient_items(
+
+    @property
+    def txt(self):
+        txt = str(self._orient_items(
                                     self.items,
                                     self.size,
                                     self.orient,
@@ -437,7 +428,7 @@ class ItemsMenu(Items, Box, ActionReady):
                                     self.align,
                                     self.div,
                                     self.loop_div))
-        return self.txt
+        return string_align_move(txt, string_size(txt), self.offset, self.align, self.loop)
 
 
     @property
@@ -460,9 +451,6 @@ class ItemsMenu(Items, Box, ActionReady):
             div.parent = self
             return div
 
-    def update_pos(self):
-        self.offset = [0, -self.index]
-
     def item_size_request(self, item):
         item_size = string_size(str(item._txt))
         orient_max = [max(size) for size in zip(item_size, self.size)]
@@ -473,22 +461,23 @@ class ItemsMenu(Items, Box, ActionReady):
             return [item_size[0], orient_max[1]]
         return self.size
 
-    '''
-    def check_do(self, trigger):
-        if not isinstance(self.selected_item(), Items):
-
-            self.selected_item().check_do(trigger)
-        else:
-            print('Alternate: ', self.actions, self)
-            ActionReady.check_do(self, trigger)
-            #self.check_do(trigger)
-    '''
-
-
     @staticmethod
     def axis(direction):
         return [direction == HORIZONTAL,
                 direction == VERTICAL]
+    @staticmethod
+    def needs_loop(items, size, orient, loop, item_div):
+        axis = ItemsMenu.axis(orient)
+        # Calculate if loop div is needed
+        if loop:
+            items_div = ItemsMenu._items_insert_divs(items, item_div, Label(''), False)
+            sizes = [item.size for item in items_div]
+            sizes_summed = [sum(i) for i in zip(*sizes)]
+            items_length = sum(prod_iters(axis, sizes_summed))
+            box_length = sum(prod_iters(axis, size))
+            if items_length <= box_length:
+                loop = False
+        return loop
 
     @staticmethod
     def _items_insert_divs(items, item_div, loop_div, loop):
@@ -536,17 +525,8 @@ class ItemsMenu(Items, Box, ActionReady):
         Returns:
             str: Menu content
         """
-        axis = ItemsMenu.axis(orient)
 
-        # Calculate if loop div is needed
-        if loop:
-            items_div = ItemsMenu._items_insert_divs(items, item_div, loop_div, False)
-            sizes = [item.size for item in items_div]
-            sizes_summed = [sum(i) for i in zip(*sizes)]
-            items_length = sum(prod_iters(axis, sizes_summed))
-            box_length = sum(prod_iters(axis, size))
-            if items_length <= box_length:
-                loop = False
+        loop = ItemsMenu.needs_loop(items, size, orient, loop, item_div)
 
         # string
         items = ItemsMenu._items_insert_divs(items, item_div, loop_div, loop)
@@ -564,11 +544,32 @@ class ItemsMenu(Items, Box, ActionReady):
                         str_list=string.split('\n')
                         cols += str_list[row]
                 ordered_strings.append(cols)
-
+        print(ordered_strings)
         return '\n'.join(ordered_strings)
 
+    def update_offset(self):
+        offset = [0, self.index]
+        #print(offset)
+        loop = ItemsMenu.needs_loop(self.items, self.size, self.orient, self.loop, self.div)
+        items = ItemsMenu._items_insert_divs(self.items, self.div, self.loop_div, loop)
+        index = items.index(self.selected_item())
+        axis = ItemsMenu.axis(self.orient)
+        '''
+        if index = len(self.items)-1:
+            item_length = [sum(i) for i in zip(*prod_iters(axis, self.size))]
+            menu_length = [sum(i) for i in zip(*prod_iters(axis, self.size))]
+        '''
 
-class ItemsChoice(Items, Box):
+        offset = [0,0]
+        for i in range(index):
+            item = self.items[i]
+            if i < index:
+                offset = [offset[0]+item.size[0], offset[1]+item.size[1]]
+        self.offset = prod_iters(axis, offset)
+        print(self.offset)
+
+
+class ItemsChoice(Items, Box, ActionReady):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -578,454 +579,6 @@ class ItemsChoice(Items, Box):
         self.txt = str(self.selected_item())
         return self.txt
 
-
-
-
-class Menu(object):
-
-    def __init__(self, name='', box=[16, 2], auto_size=False,
-                 parent=None, items=[], loop=False, selected_end=True,
-                 cursor_pos=[0, 0],
-                 direction=HORIZONTAL, align_h=ALIGN_LEFT, align_v=ALIGN_TOP,
-                 item_div='', loop_div='  ', auto_box=True, sub=[]):
-        # Hidden
-        self._cursor_pos = [0, 0]
-        self._items = []
-        self._index = 0
-        self._selected = None
-        self._parent = None
-        self._focused_item = None
-        self.auto_box = auto_box
-
-        self.parent = parent
-        self.cursor_pos = cursor_pos
-        self.items = items
-
-        self.name = name
-        self.box = box
-        self.loop = loop
-        #self.selected_end = selected_end
-        self.direction = direction
-        self.align_h = align_h
-        self.align_v = align_v
-        self.offset = [0,0]
-
-        self.actions = []
-
-        self.item_div = item_div
-        self.loop_div = loop_div
-
-        if self.auto_box:
-            self.set_box_to_content()
-
-    def __repr__(self):
-        return '<Menu: {0}>'.format(self.items)
-
-    def __str__(self):
-        return self.display()
-
-
-    ###########################################################################
-    # Static Mehtods
-    ###########################################################################
-
-
-    @staticmethod
-    def axis(direction):
-        return [direction == HORIZONTAL,
-                direction == VERTICAL]
-
-    @staticmethod
-    def _items_max_box(items):
-        """Maximum size of combined items
-
-        Parameters:
-            items (list): list of Menu or str
-
-        Returns:
-            list: list of int [w, h] size
-        """
-
-        strings = [str(item) for item in items]
-        sizes = [string_size(string) for string in strings]
-        # print(sizes)
-        return [max(i) for i in zip(*sizes)]
-
-    @staticmethod
-    def _items_insert_divs(items, axis, item_div, loop_div, loop):
-        """Return a list of items with inserted dividers
-
-        Parameters:
-            items (list): list of Menu or str
-            item_div (str): String representing the item divider
-            loop_div (str): String representing the loop divider
-            loop (bool): True if menu is looping
-
-        Returns:
-            list: list of items
-        """
-
-
-        complete_list = []
-        for idx, item in enumerate(items):
-
-            # Insert item
-            complete_list.append(item)
-
-            if (idx < (len(items) - 1)):
-                # Insert item divider
-                complete_list.append(item_div)
-
-        if loop == True:
-            # Insert loop dividier
-            complete_list.append(loop_div)
-
-        return complete_list
-
-    @staticmethod
-    def _items_expanded_aligned(items, offset, axis, align_h, align_v):
-        """Expand and align items.
-        Use their combined max box across the directional axis
-
-        Parameters:
-            items (list):
-            offset (list): list of int [x, y]
-            axis (list): list of bool [horizontal, vertical]
-            align_h (int): range(0-2)
-            align_v (int): range(0-2)
-
-        Returns:
-            list: list of strings.
-        """
-
-        # Max size
-        max_item_size = Menu._items_max_box(items)
-        # direction
-        axis_flipped = [not b for b in axis]
-        max_size_across_direction = prod_iters(axis_flipped, max_item_size)
-
-        new_items_str = []
-        for item in items:
-
-            string = str(item)
-            if(string):
-                # box
-                size = string_size(string)
-                item_box = [max(i) for i in zip(max_size_across_direction,
-                                                size)]
-                # align
-                new_str = string_align_move(string, item_box, offset, align_h, align_v, loop=False)
-                #new_str = string_move(string, item_box, offset, loop=False, filler=' ')
-                new_items_str.append(new_str)
-
-        #print(new_items_str)
-        return new_items_str
-
-    @staticmethod
-    def _items_content(items, box, direction, loop, align_h, align_v, item_div, loop_div):
-        """Full content of menu without move or crop
-
-        Parameters:
-            items (list):
-            direction (bool): Vertical if True
-            loop (bool): True if menu is looping
-            align_h (int): range(0-2)
-            align_v (int): range(0-2)
-            item_div (str): String representing the item divider
-            loop_div (str): String representing the loop divider
-
-        Returns:
-            str: Menu content
-        """
-        axis = Menu.axis(direction)
-
-        # Calculate if loop div is needed
-        if loop:
-            sizes = [string_size(str(i)) for i in items]
-            sizes_summed = [sum(i) for i in zip(*sizes)]
-            items_length = sum(prod_iters(axis, sizes_summed))
-            box_length = sum(prod_iters(axis, box))
-            if items_length <= box_length:
-                loop = False
-
-        # string
-        items = Menu._items_insert_divs(items, axis, item_div, loop_div, loop)
-        strings = Menu._items_expanded_aligned(items, [0,0], axis, align_h, align_v)
-        items_box = Menu._items_max_box(items)
-        ordered_strings = strings
-
-        if direction == HORIZONTAL:
-            new_string=''
-            ordered_strings=[]
-            for row in range(items_box[1]):
-                cols=''
-                for string in strings:
-                    str_list=string.split('\n')
-                    cols += str_list[row]
-                ordered_strings.append(cols)
-        pprint(ordered_strings)
-        return '\n'.join(ordered_strings)
-
-    @staticmethod
-    def _items_content_moved(items, box, offset, direction, loop, align_h, align_v, item_div, loop_div):
-        """Returns a moved version of _items_content
-
-        Parameters:
-            items (list):
-            offset (list): list of int [x, y]
-            direction (bool): Vertical if True
-            loop (bool): True if menu is looping
-            align_h (int): range(0-2)
-            align_v (int): range(0-2)
-            item_div (str): String representing the item divider
-            loop_div (str): String representing the loop divider
-
-        Returns:
-            str: Content offset
-        """
-        content = Menu._items_content(items, box, direction, loop, align_h, align_v,
-                                  item_div, loop_div)
-        box = string_size(content)
-        axis = Menu.axis(direction)
-        #offset = prod_iters(axis, [offset]*2)
-        #print(offset)
-
-        return string_move(content, box, offset, loop)
-
-
-    ###########################################################################
-    # Properties
-    ###########################################################################
-
-
-    @property
-    def items(self):
-        return self._items
-
-    @items.setter
-    def items(self, items):
-        for item in items:
-            if isinstance(item, Menu):
-                # Menu
-                item.parent = self
-            elif isinstance(item, str):
-                # str
-                pass
-            else:
-                raise TypeError('Items should be instance of Menu or str: {}'.format(item))
-        self._items = items
-
-    @property
-    def parent(self):
-        return self._parent
-
-    @parent.setter
-    def parent(self, parent):
-        # Remove parent
-        if parent == None:
-            if self.has_item(self.parent_topmost().focus):
-                # keep selected from last parent_topmost
-                self.focus = self.parent_topmost().focus
-            else:
-                # selected on self
-                self.focus = self
-
-        elif not isinstance(parent, Menu):
-            raise TypeError('Parent should be an instance of Menu or None: {}'.format(parent))
-
-        self._parent = parent
-
-    @property
-    def focus(self):
-        return self._focused_item
-
-    @focus.setter
-    def focus(self, item):
-        if not (isinstance(item, Menu) or item == None):
-            raise TypeError('focus should be an instance of Menu or None: {}'.format(item))
-        self._focused_item = item
-
-
-    @property
-    def cursor_pos(self):
-        pos = self._cursor_pos
-        pos_min = [0,0]
-        pos_max = [max(self.box[0]-1, 0), max(self.box[1]-1, 0)]
-        pos = [max(p) for p in zip(pos_min, pos)]
-        pos = [min(p) for p in zip(pos_max, pos)]
-        return pos
-
-    @cursor_pos.setter
-    def cursor_pos(self, pos):
-        self._cursor_pos = pos
-
-
-    ###########################################################################
-    # Methods
-    ###########################################################################
-
-
-    def content(self):
-        return self._items_content(self.items, self.box, self.direction, self.loop,
-                                   self.align_h, self.align_v,
-                                   self.item_div, self.loop_div)
-
-    def display(self):
-        if not self.items:
-            # No items
-            return string_move(' ', self.box, [0, 0], False, filler=' ')
-
-        # Has items
-        content_moved = self._items_content_moved(
-            self.items, self.box, self.offset, self.direction, self.loop,
-            self.align_h, self.align_v, self.item_div, self.loop_div)
-        align_pos = get_align_offset(content_moved, self.box, hor=self.align_h, vert=self.align_v)
-        return string_move(content_moved, self.box, align_pos, False)
-
-    def cursor_display(self, pos=False):
-        item_div = string_move(' ', string_size(self.item_div), [0, 0], False, filler=' ')
-        loop_div = string_move(' ', string_size(self.item_div), [0, 0], False, filler=' ')
-        display = ''
-
-        if not self.items:
-            char = ' '
-            if self.parent_topmost().focus == self:
-                char = '1'
-            # does look useful
-            pos_invert = [-self.cursor_pos[0], -self.cursor_pos[1]]
-            display = string_move(char, self.box, pos_invert, False, filler=' ')
-        else:
-            # generate from items 
-            items = []
-            for item in self.items:
-                if item == self.selected():
-                    char = ' '
-                    if self.parent_topmost().focus == self:
-                        char = '1'
-                    else:
-                        if isinstance(item, Menu):
-                            # go deeper
-                            items.append(item.cursor_display())
-                            continue
-                    pos_invert = [-self.cursor_pos[0], -self.cursor_pos[1]]
-                    string = string_move(char, string_size(str(item)), pos_invert, False, filler=' ')
-                    items.append(string)
-                else:
-                    # blank for unselected
-                    items.append(string_move(' ', string_size(str(item)), [0, 0], False, filler=' '))
-
-            content_moved = self._items_content_moved(
-                items, self.box, self.offset, self.direction, self.loop,
-                self.align_h, self.align_v, item_div, loop_div)
-            align_pos = get_align_offset(content_moved, self.box, hor=self.align_h, vert=self.align_v)
-            display = string_move(content_moved, self.box, align_pos, False)
-
-        if pos:
-            return find_char_pos(display, '1')
-        else:
-            return display
-
-
-    def selected_pos(self):
-        items = []
-        for item in self.items:
-            char = ' '
-            if item == self.selected():
-                char = '1'
-            items.append(string_move(char, string_size(str(item)), [0, 0], False, filler=' '))
-
-        content = self._items_content(items, self.box, self.direction, self.loop,
-                                   self.align_h, self.align_v,
-                                   self.item_div, self.loop_div)
-        offset = find_char_pos(content, '1')
-        if offset:
-            return offset
-        return [0, 0]
-
-
-    def set_box_to_content(self, w=True, h=True):
-        content = self._items_content(self.items, self.box, self.direction, False,
-                                   self.align_h, self.align_v,
-                                   self.item_div, self.loop_div)
-        size = string_size(content)
-        if w:
-            self.box[0] = size[0]
-        if h:
-            self.box[1] = size[1]
-
-    def first(self):
-        self.select_index(0)
-        return self.selected()
-
-    def last(self):
-        self.select_index(len(self.items)-1)
-        return self.selected()
-
-    def next(self):
-        self.select_index(self.selected_index() + 1)
-        return self.selected()
-
-    def prev(self):
-        self.select_index(self.selected_index() - 1)
-        return self.selected()
-
-    def select_index(self, index):
-        if self.loop:
-            # loop
-            self._index = index % len(self.items)
-        else:
-            # Ends
-            self._index = max(min(index, len(self.items)-1), 0)
-        self.offset = self.selected_pos()
-
-    def select(self, item):
-        if item in self.items:
-            self.select_index(self.items.index(item))
-        else:
-            raise ValueError('Selected item should be in items: {}',format(item))
-
-    def selected_index(self):
-        return self._index
-
-    def selected(self):
-        return self.items[self.selected_index()]
-
-    def has_item(self, item, recursive=False):
-
-        childrens = self.items
-        while childrens:
-            current = childrens.pop(0)
-            if current == item:
-                return True
-            if recursive:
-                childrens.extend(current.items)
-
-    def has_parent(self, item, recursive=False):
-
-        parent = self.parent
-        while parent:
-            current = parent
-            if current == item:
-                return True
-            if recursive:
-                parent = current.parent
-
-    def parent_topmost(self, max_rec=100):
-        recursions = 0
-        parent = self.parent
-        parent_topmost = self
-        while parent and recursions < max_rec:
-            recursions += 1
-            parent_topmost = parent
-            parent = parent.parent
-        return parent_topmost
-
-    #def selected_parent_topmost(self):
-    #    self.selected = self.parent_topmost
-
-    def check_actions(self, trigger):
-        for action in self.actions:
-            action.check(trigger, self)
 
 
 if __name__ == "__main__":

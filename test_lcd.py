@@ -17,7 +17,7 @@ LCD_SIZE = [16, 2]
 class Button(object):
 
     def __init__(self, name, id, txt='', continuous=False,
-                 check_fct=None, check_args=[], check_kwargs={}):
+                 check_fct=None, check_args=(), check_kwargs={}):
         self.name = name
         self.id = id
         self.txt = txt or name
@@ -43,7 +43,6 @@ class Button(object):
                 return not old_last or self.continuous
         self.last_value = False
         return
-
 
 def lcd_fast_message(lcd, string, string_prev=''):
     # only update what has changed
@@ -87,33 +86,27 @@ def from_to(txt, f, t):
     pprint(t)
 
 
-def below_fct(menu, app):
+def below_fct(app, menu, *args, **kwargs):
     from_to('Go Below', menu, menu.below)
     app.menu = menu.below
 
-def above_fct(menu, app):
+def above_fct(app, menu, *args, **kwargs):
     from_to('Go Above', menu, menu.above)
     app.menu = menu.above
 
-def next_fct(menu):
+def next_fct(menu, *args, **kwargs):
     before = str(menu.selected_item())
     menu.next()
     from_to('Go Next', before, menu.selected_item())
 
-
-def prev_fct(menu):
+def prev_fct(menu, *args, **kwargs):
     before = str(menu.selected_item())
     menu.prev()
     from_to('Go Prev', before, menu.selected_item())
 
-def trigger_selected_item_fct(menu, *triggers):
-    from_to('trigger_selected_item', menu, menu.selected_item())
-    print('triggers: ', triggers)
-    print(menu.selected_item().actions)
-    for i in menu.selected_item().actions:
-        print(i.triggers)
-    print(menu.selected_item().check(triggers))
-    menu.selected_item().check_do(triggers)
+def trigger_item_fct(menu, trigger, *args, **kwargs):
+    from_to('trigger_item', menu, menu.selected_item())
+    menu.selected_item().check_do(trigger)
 
 
 
@@ -129,7 +122,7 @@ app = App()
 ###############################################################################
 btns = []
 for key, val in BUTTONS.items():
-    btn = Button(key, val, check_fct=lcd.is_pressed, check_args=[val])
+    btn = Button(key, val, check_fct=lcd.is_pressed, check_args=(val, ))
     #btn.continuous = key == 'UP'
     btns.append(btn)
 
@@ -137,24 +130,27 @@ for key, val in BUTTONS.items():
 # Actions
 ###############################################################################
 
-#focus_deeper = Action(trigger=BUTTONS['SELECT'], action=focus_deeper_fct)
-#focus_back = Action(trigger=BUTTONS['SELECT'], action=focus_back_fct)
+below = Action(triggers=(BUTTONS['SELECT'], ),
+               action=below_fct,
+               kwargs={'app': app, },
+               )
+below_any = Action(triggers=tuple(BUTTONS.values()),
+                   action=below_fct,
+                   kwargs={'app': app, },
+                   )
+above = Action(triggers=(BUTTONS['SELECT'], ),
+               action=above_fct,
+               kwargs={'app': app, },
+               )
 
-below = Action(triggers=(BUTTONS['SELECT'], ), action=below_fct, args=(app, ))
-below_any = Action(triggers=tuple(BUTTONS.values()), action=below_fct, args=(app, ))
-above = Action(triggers=(BUTTONS['SELECT'], ), action=above_fct, args=(app, ))
-#trigger_selected_item = Action(triggers=(BUTTONS['RIGHT'], BUTTONS['LEFT'], ),
-#                               action=trigger_selected_item_fct,
-#                               args=(BUTTONS['RIGHT'], BUTTONS['LEFT'], )
-#                               )
-trigger_selected_item = Action(triggers=(BUTTONS['RIGHT'], BUTTONS['LEFT'], ),
-                               action=trigger_selected_item_fct,
-                               )
+trigger_items_LR = Action(triggers=(BUTTONS['RIGHT'], BUTTONS['LEFT'], ),
+                          action=trigger_item_fct,
+                          )
 
-down = Action(triggers=(BUTTONS['DOWN'], ), action=next_fct)
-up = Action(triggers=(BUTTONS['UP'], ), action=prev_fct)
-right = Action(triggers=(BUTTONS['RIGHT'], ), action=next_fct)
-left = Action(triggers=(BUTTONS['LEFT'], ), action=prev_fct)
+vert_next = Action(triggers=(BUTTONS['DOWN'], ), action=next_fct)
+vert_prev = Action(triggers=(BUTTONS['UP'], ), action=prev_fct)
+hori_next = Action(triggers=(BUTTONS['RIGHT'], ), action=next_fct)
+hori_prev = Action(triggers=(BUTTONS['LEFT'], ), action=prev_fct)
 
 ###############################################################################
 # Menus
@@ -164,22 +160,24 @@ left = Action(triggers=(BUTTONS['LEFT'], ), action=prev_fct)
 main = Box(size=[16, 2], auto_size=False, align=[0, 0])
 welcome = PushButton('Welcome', parent=main, actions=[below_any])
 
-home = ItemsMenu(parent=main, align=[0, 0], actions=[up, down, trigger_selected_item])
+# Home
+home = ItemsMenu(parent=main, align=[0, 0], actions=[vert_next, vert_prev, trigger_items_LR], loop=False)
 turntable = PushButton('Turntable', parent=home)
 settings = PushButton('Settings', parent=home)
 blop = PushButton('Blop', parent=home)
-sauce = PushButton('sauce', parent=home)
-colors = ItemsMenu(parent=main, align=[0,0], orient=0, actions=[left, right])
+sauce = PushButton('sau\nsag', parent=home)
+colors = ItemsChoice(parent=main, align=[0,0], orient=0, actions=[hori_next, hori_prev])
 
-red = PushButton('Red', parent=colors, above=colors)
-green = PushButton('Green', parent=colors, above=colors)
-blue = PushButton('Blue', parent=colors, above=colors)
-yellow = PushButton('Yellow', parent=colors, above=colors)
-orange = PushButton('Orange', parent=colors, above=colors)
+# Colors
+red = PushButton('   Red ->', parent=colors, above=colors)
+green = PushButton('<- Green ->', parent=colors, above=colors)
+blue = PushButton('<- Blue ->', parent=colors, above=colors)
+yellow = PushButton('<- Yellow ->', parent=colors, above=colors)
+orange = PushButton('<- Orange   ', parent=colors, above=colors)
 
 # Linking
 welcome.below = home
-home.items = [turntable, settings, blop, sauce, colors]
+home.items = [turntable, settings, sauce, colors, blop]
 colors.items = [red, green, blue, yellow, orange]
 app.menu = welcome
 
@@ -190,15 +188,15 @@ pprint(app.menu)
 lcd_fast_message(lcd, str(welcome), string_prev=' ')
 
 while True:
-    old_lcd_fast_message = str(app.menu)
     for btn in btns:
         if btn.value:
+            old_lcd_fast_message = str(app.menu)
             print(btn.name)
             print(app.menu)
             app.menu.check_do(btn.id)
             #app.menu = app.focus
 
-
+            print('i am printing')
             lcd_fast_message(lcd, str(app.menu), string_prev=old_lcd_fast_message)
             #pprint(str(app))
             #pprint(app.cursor_display())
